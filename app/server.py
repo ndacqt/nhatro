@@ -200,6 +200,8 @@ DEFAULT_SETTINGS = {
     ),
     # tự gửi bill qua app: mỗi ngày từ giờ này, bill đã nhập đủ chỉ số của phòng có tài khoản khách sẽ được gửi
     "auto_publish": True, "auto_publish_hour": 20,
+    # cách thanh toán hiện trên bill: ưu tiên tiền mặt + có hiện mã QR chuyển khoản hay không
+    "pay_cash_first": True, "cash_note": "Vui lòng nộp tiền mặt trực tiếp cho chủ nhà / quản lý.", "bill_show_qr": True,
     # khu vực (Quận/Huyện, Tỉnh/TP) – để Sales lọc phòng theo khu vực
     "area": "",
     # mã chủ nhà: phần đầu tên đăng nhập tài khoản phòng (<mã chủ nhà>-<mã tòa>-<mã phòng>); trống = tự đặt CT<số>
@@ -811,7 +813,11 @@ class Handler(BaseHTTPRequestHandler):
                 extras = [e for e in rows(con, "SELECT * FROM extras WHERE room_code=?", (l["room_code"],)) if e["period"] in pers]
             admins = auth.building_admins(l["building"])
             pub = {k: s.get(k) for k in ("house_name", "address", "phone", "bank_name", "bank_bin", "account_no", "account_name",
-                                          "due_day", "elec_price", "water_price", "service_fee", "parking_price", "landlord_name", "landlord_phone")}
+                                          "due_day", "elec_price", "water_price", "service_fee", "parking_price", "landlord_name", "landlord_phone",
+                                          "pay_cash_first", "cash_note", "bill_show_qr")}
+            if s.get("bill_show_qr") in (False, 0, "0"):  # chủ tắt QR chuyển khoản -> không gửi STK cho khách
+                for k in ("bank_name", "bank_bin", "account_no", "account_name"):
+                    pub[k] = ""
             out.append({"link_id": l["id"], "building": l["building"], "active": bool(l["active"]), "since": l["since_period"],
                         "until": l["until_period"], "settings": pub,
                         # đã trả phòng: không gửi thông tin phòng hiện tại (có thể là của khách mới), chỉ mã phòng + tên mình

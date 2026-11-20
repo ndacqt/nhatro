@@ -85,7 +85,7 @@ Máy chủ kiểm tra quyền ở **mọi thao tác** (chỉ tính những trư�
 |---|---|
 | **Tổng quan** | Thu – chi – lãi theo khoản, so sánh với tháng trước (▲▼ %), so sánh các tòa, biểu đồ 12 tháng, nhắc hợp đồng sắp hết hạn, nút **⬇ Excel** |
 | **Thu tháng** | Tạo kỳ mới (tự lấy chỉ số cũ, giá, số người, xe, chi phí cố định), nhập *Chỉ số mới* (Enter xuống phòng tiếp), **📷 chụp đồng hồ – AI đọc số**, *Chụp điện lần lượt*, cột kWh tháng trước + cảnh báo chênh lệch, tích đã thu |
-| **Bill** | Phiếu thanh toán có **mã QR VietQR** (số tiền + nội dung CK điền sẵn) và **mã QR xem lịch sử hóa đơn** cho khách; tải PNG, in / PDF, gửi Zalo (copy ảnh + mở chat), gửi Zalo lần lượt cả kỳ, **📤 gửi bill qua app** |
+| **Bill** | Phiếu thanh toán có khung **💵 Ưu tiên thanh toán tiền mặt** (bật / tắt + lời nhắn ở Cài đặt), **mã QR VietQR** (số tiền + nội dung CK điền sẵn; chủ có thể bỏ tích để bill không hiện QR / số tài khoản) và **mã QR xem lịch sử hóa đơn** cho khách; tải PNG, in / PDF, gửi Zalo (copy ảnh + mở chat), gửi Zalo lần lượt cả kỳ, **📤 gửi bill qua app** |
 | **Phòng** | Khách thuê, SĐT, ngày vào / **ngày ra (hết hạn HĐ)**, giá, cọc; **📷 chụp CCCD – AI tự điền**; thông tin cho Sales (diện tích, tầng, tiện ích, mô tả); kho ảnh; **hợp đồng thuê tự động** (in / PDF / Word); **tài khoản app của khách** + mã QR phòng |
 | **Gửi Sales** | Tin đăng tự soạn từ giá + dịch vụ + tiện ích, ảnh tổng hợp (poster), tải ảnh .zip, chế độ hiển thị cho Sales (Ẩn / Công khai / Gửi riêng), **📒 Danh bạ Sales** + **📣 Gửi cho danh bạ**, trạng thái **chốt phòng** (Chốt / Gỡ khỏi Sales / Hủy chốt) |
 | **Chi phí / Thu thêm** | Sổ chi (cố định tự thêm theo kỳ; điện / nước tạm tính theo kWh / số người đến khi có hóa đơn thật) và thu thêm / giảm trừ |

@@ -158,13 +158,17 @@ function qrDataUrl(text, cell = 5) {
   return q.createDataURL(cell, 2);
 }
 const bankReady = () => S.settings.bank_bin && S.settings.account_no;
+const isOn = v => !(v === false || v === 0 || v === '0');  // cài đặt bật/tắt, chưa đặt = bật
+// chủ có thể tắt mã QR chuyển khoản trên bill (Cài đặt) -> bill / tin nhắn không hiện STK, QR
+const payQrOn = () => bankReady() && isOn(S.settings.bill_show_qr);
+const cashFirst = () => isOn(S.settings.pay_cash_first);
 const transferInfo = b => noAccent(`${S.settings.house_name || ''} ${b.room_code.replace(/\./g, '')} T${pM(b.period)} ${pY(b.period)}`).replace(/[^A-Za-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 function billQr(b) {
-  if (!bankReady()) return '';
+  if (!payQrOn()) return '';
   return qrDataUrl(vietqrPayload(S.settings.bank_bin, String(S.settings.account_no).replace(/\s/g, ''), calc(b).total, transferInfo(b)));
 }
 function qrWebLink(b) {
-  if (!bankReady()) return '';
+  if (!payQrOn()) return '';
   return `https://img.vietqr.io/image/${S.settings.bank_bin}-${String(S.settings.account_no).replace(/\s/g, '')}-compact2.png?amount=${Math.round(calc(b).total)}&addInfo=${encodeURIComponent(transferInfo(b))}&accountName=${encodeURIComponent(S.settings.account_name || '')}`;
 }
 
@@ -250,7 +254,7 @@ const CAP_RULES = [
   ['[data-act=idcardScan],[data-act=newContract],[data-act=delContract],#cf [name],#cSave', 'rooms'],
   ['#sf [name^=landlord],#sf [name=contract_place],#sf [name=remind_days],#sf [name^=auto_publish]', 'settings'],
   ['[data-act=syncTenants],[data-act=sendSetupQr],[data-act=rotateRoomQr],[data-act=ownerLock],[data-act=ownerUnlock],[data-act=unlistLocked]', 'rooms'],
-  ['#sf [name=area],#sf [name=owner_code]', 'settings'],
+  ['#sf [name=area],#sf [name=owner_code],#sf [name=pay_cash_first],#sf [name=bill_show_qr],#sf [name=cash_note]', 'settings'],
   ['[data-act=leaseRemind],[data-act=leaseRenew],[data-act=leaseLeaving],[data-act=shareSalesRoom],[data-act=tenantQr],[data-act=tenantEnd]', 'rooms'],
   ['[data-act=publishBill],[data-act=confirmClaim]', 'payments'],
   ['input[data-f=paid],[data-act=togglePaid]', 'payments'],
@@ -455,7 +459,7 @@ function vDashboard() {
   if (r.estimated) warn.push(`<div class="card"><b>${r.estimated} khoản chi còn tạm tính</b> (điện/nước). Có hóa đơn thật thì nhập ở tab Chi phí. <button class="btn sm" data-act="goTab" data-t="expenses">Mở</button></div>`);
   const due = leaseDue();
   if (due.length) warn.push(`<div class="card" style="border-color:var(--warn)"><div class="head" style="margin-bottom:4px"><h3>📅 ${due.length} hợp đồng sắp hết hạn (trong ${n0(S.settings.remind_days) || 30} ngày)</h3></div>${due.slice(0, 5).map(n => leaseItemHTML(n)).join('')}${due.length > 5 ? `<button class="btn sm" data-act="openBell" style="margin-top:6px">Xem tất cả ${due.length}</button>` : ''}</div>`);
-  if (!bankReady()) warn.push(`<div class="card"><b>Chưa có thông tin ngân hàng</b> – bill sẽ không có mã QR. <button class="btn sm" data-act="goTab" data-t="settings">Cài đặt</button></div>`);
+  if (!bankReady() && isOn(S.settings.bill_show_qr)) warn.push(`<div class="card"><b>Chưa có thông tin ngân hàng</b> – bill sẽ không có mã QR. <button class="btn sm" data-act="goTab" data-t="settings">Cài đặt</button></div>`);
   const rowsThu = ['Nhà', 'Điện', 'Nước', 'Dịch vụ', 'Xe', 'Thu thêm', 'Khác'];
   view.innerHTML = `
   <div class="head"><div><h2>Tổng quan ${pLabel(p)}</h2><p>${r.n} phòng có bill • ${S.rooms.filter(x => x.status === 'Đang thuê').length} đang thuê • ${vacant.length} trống / sắp trống</p></div>
@@ -641,12 +645,14 @@ function billHTML(b) {
     </tbody></table>
     <div class="total"><span>TỔNG CẦN THANH TOÁN</span><span>${moneyD(c.total)}</span></div>
     ${b.paid ? `<div style="text-align:center;margin:6px 0 10px"><span class="paid-stamp">ĐÃ THANH TOÁN ${fmtDate(b.paid_date)}</span></div>` : ''}
-    <div class="pay"><div>
-      ${bankReady() ? `<div><b>QUÉT MÃ ĐỂ THANH TOÁN</b></div><div>Ngân hàng: <b>${esc(s.bank_name)}</b></div><div>Số tài khoản: <b>${esc(s.account_no)}</b></div><div>Chủ tài khoản: <b>${esc(s.account_name)}</b></div><div>Nội dung CK: <b>${esc(transferInfo(b))}</b></div>` : '<div class="muted">(Nhập ngân hàng & số TK ở Cài đặt để có mã QR)</div>'}
+    ${cashFirst() ? `<div class="cash-first"><b>💵 ƯU TIÊN THANH TOÁN TIỀN MẶT</b>${s.cash_note ? `<div>${esc(s.cash_note)}</div>` : ''}</div>` : ''}
+    ${payQrOn() ? `<div class="pay"><div>
+      <div><b>${cashFirst() ? 'HOẶC CHUYỂN KHOẢN – QUÉT MÃ' : 'QUÉT MÃ ĐỂ THANH TOÁN'}</b></div><div>Ngân hàng: <b>${esc(s.bank_name)}</b></div><div>Số tài khoản: <b>${esc(s.account_no)}</b></div><div>Chủ tài khoản: <b>${esc(s.account_name)}</b></div><div>Nội dung CK: <b>${esc(transferInfo(b))}</b></div>
     </div>${qr ? `<img src="${qr}" alt="QR">` : ''}</div>
-    <div class="note">Quét mã QR bằng app ngân hàng – số tiền và nội dung đã điền sẵn. Cảm ơn quý khách!</div>
+    <div class="note">Quét mã QR bằng app ngân hàng – số tiền và nội dung đã điền sẵn. Cảm ơn quý khách!</div>`
+    : `<div class="note">${cashFirst() ? '' : bankReady() ? '' : '(Nhập ngân hàng & số TK ở Cài đặt nếu muốn hiện mã QR chuyển khoản)'} Cảm ơn quý khách!</div>`}
     ${r.access_token ? `<div class="bill-app"><img src="${qrDataUrl(roomQrUrl(r.access_token), 3)}" alt="QR app">
-      <div><b>📱 Xem lịch sử hóa đơn phòng ${esc(b.room_code)} trên app</b><br>Quét mã này bằng camera điện thoại, đăng nhập / đăng ký bằng số điện thoại của bạn.</div></div>` : ''}
+      <div><b>📱 Xem lịch sử hóa đơn phòng ${esc(b.room_code)} trên app</b><br>Quét mã này bằng camera điện thoại, đăng nhập bằng tài khoản phòng${linkOf(b.room_code) ? ` <b>${esc(linkOf(b.room_code).username)}</b>` : ''} và mật khẩu bạn đã đặt.</div></div>` : ''}
   </div>`;
 }
 function vBill() {
@@ -667,7 +673,7 @@ function vBill() {
     <button class="btn" data-act="dlBillImg">Tải ảnh PNG</button>
     <button class="btn" data-act="printBill">In / Lưu PDF</button>
     <button class="btn" data-act="copyBillText" data-code="${esc(b.room_code)}">Copy tin nhắn chữ</button>
-    ${bankReady() ? `<button class="btn" data-act="copyQrLink" data-code="${esc(b.room_code)}">Copy link QR</button>` : ''}
+    ${payQrOn() ? `<button class="btn" data-act="copyQrLink" data-code="${esc(b.room_code)}">Copy link QR</button>` : ''}
     <button class="btn" data-act="togglePaid" data-id="${b.id}">${b.paid ? 'Bỏ tích đã thu' : '✓ Đánh dấu đã thu'}</button>
     ${b.meter_photo ? `<button class="btn" data-act="viewMeterPhoto" data-f="${esc(b.meter_photo)}">🖼 Ảnh đồng hồ điện</button>` : ''}
     ${b.tenant_paid_at && !b.paid ? `<p class="pill warn" style="display:block;white-space:normal">Khách báo đã chuyển khoản lúc ${esc(b.tenant_paid_at)} – kiểm tra tài khoản rồi bấm ✓ Đánh dấu đã thu</p>` : ''}
@@ -726,7 +732,8 @@ function billText(b) {
   if (c.parking) L.push(`Gửi xe: ${b.vehicles} × ${money(b.parking_price)} = ${moneyD(c.parking)}`);
   S.extras.filter(e => e.period === b.period && e.room_code === b.room_code).forEach(e => L.push(`${e.type || 'Thu thêm'}${e.content ? ' (' + e.content + ')' : ''}: ${moneyD(e.amount)}`));
   L.push('', `TỔNG CẦN THANH TOÁN: ${moneyD(c.total)}`);
-  if (bankReady()) L.push('', `CK: ${s.bank_name} – ${s.account_no} – ${s.account_name}`, `Nội dung: ${transferInfo(b)}`, `QR: ${qrWebLink(b)}`);
+  if (cashFirst()) L.push('', `💵 ƯU TIÊN THANH TOÁN TIỀN MẶT${s.cash_note ? ' – ' + s.cash_note : ''}`);
+  if (payQrOn()) L.push('', `${cashFirst() ? 'Hoặc chuyển khoản' : 'CK'}: ${s.bank_name} – ${s.account_no} – ${s.account_name}`, `Nội dung: ${transferInfo(b)}`, `QR: ${qrWebLink(b)}`);
   return L.join('\n');
 }
 async function copyText(t) {
@@ -1141,7 +1148,14 @@ function vSettings() {
     ${field('Tự gửi bill qua app cho khách', 'auto_publish', s.auto_publish === false || s.auto_publish === 0 ? '0' : '1', { options: [['1', 'Bật – mỗi ngày tự gửi bill đã nhập đủ chỉ số'], ['0', 'Tắt – tôi tự bấm gửi']] })}
     ${field('Giờ tự gửi mỗi ngày (0–23)', 'auto_publish_hour', s.auto_publish_hour ?? 20, { num: 1 })}
     ${field('Tin nhắn mẫu nhắc khách tái ký – biến: {ten_khach} {phong} {ten_nha} {ngay_het_han} {con_lai} {han_tra_loi} {lien_he}', 'renew_message', s.renew_message, { area: 1, wide: 1, rows: 3 })}
-  </div><p class="muted" style="margin:10px 0 0">${bankReady() ? '✓ Đã đủ thông tin ngân hàng – bill có mã QR.' : '⚠ Chưa đủ ngân hàng / số TK → bill chưa có mã QR.'}</p></div>
+  </div>
+  <h3 class="section-title">Cách thanh toán hiện trên bill</h3>
+  <div class="form">
+    <label class="pay-opt"><input type="checkbox" class="check" name="pay_cash_first" ${cashFirst() ? 'checked' : ''}> <span><b>💵 Luôn hiện “Ưu tiên thanh toán tiền mặt”</b><br><span class="muted">Khung nổi bật trên bill, ảnh bill, tin nhắn và app của khách</span></span></label>
+    <label class="pay-opt"><input type="checkbox" class="check" name="bill_show_qr" ${isOn(s.bill_show_qr) ? 'checked' : ''}> <span><b>Hiện mã QR + số tài khoản chuyển khoản</b><br><span class="muted">Bỏ tích: bill không có QR / STK (khách chỉ trả tiền mặt)</span></span></label>
+    ${field('Lời nhắn thanh toán tiền mặt', 'cash_note', s.cash_note, { wide: 1, ph: 'vd: Nộp cho quản lý tại phòng 101 trước ngày 5' })}
+  </div>
+  <p class="muted" style="margin:10px 0 0">${!isOn(s.bill_show_qr) ? 'Mã QR chuyển khoản đang TẮT trên bill.' : bankReady() ? '✓ Đã đủ thông tin ngân hàng – bill có mã QR.' : '⚠ Chưa đủ ngân hàng / số TK → bill chưa có mã QR.'}</p></div>
   <div class="card" style="margin-top:14px"><h3 style="margin-bottom:12px">Đơn giá thu khách & giá vốn</h3><div class="form">
     ${field('Điện thu khách (đ/kWh)', 'elec_price', s.elec_price, { num: 1 })}${field('Nước thu khách (đ/người)', 'water_price', s.water_price, { num: 1 })}
     ${field('Phí dịch vụ mặc định (đ/phòng)', 'service_fee', s.service_fee, { num: 1 })}${field('Giá giữ xe (đ/xe)', 'parking_price', s.parking_price, { num: 1 })}
