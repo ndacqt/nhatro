@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Quản lý nhà trọ</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/icon-180.png">
+<meta name="apple-mobile-web-app-title" content="Nhà trọ">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230f766e'/><path d='M8 15l8-7 8 7v9H8z' fill='white'/></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">⌂</span>
+    <select id="building" class="building-pick" title="Chọn tòa nhà"></select>
+  </div>
+  <nav id="tabs">
+    <button data-tab="dashboard" class="active"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Tổng quan</span></button>
+    <button data-tab="monthly"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg><span>Thu tháng</span></button>
+    <button data-tab="bill"><svg viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4"/></svg><span>Bill</span></button>
+    <button data-tab="rooms"><svg viewBox="0 0 24 24"><path d="M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17M3 21h18M15 12h.01"/></svg><span>Phòng</span></button>
+    <button data-tab="sales" class="sec"><span>Gửi Sales</span></button>
+    <button data-tab="expenses" class="sec"><span>Chi phí</span></button>
+    <button data-tab="extras" class="sec"><span>Thu thêm</span></button>
+    <button data-tab="settings" class="sec"><span>Cài đặt</span></button>
+    <button class="more-btn" data-act="moreMenu"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Khác</span></button>
+  </nav>
+  <div class="period-pick">
+    <button class="icon" id="prevP" title="Tháng trước">‹</button>
+    <input id="period" type="month" title="Kỳ đang xem">
+    <button class="icon" id="nextP" title="Tháng sau">›</button>
+    <button class="icon phone-btn" data-act="phoneAccess" title="Mở trên điện thoại">📱</button>
+    <button class="icon bell" id="bellBtn" data-act="openBell" title="Thông báo">🔔<span class="bell-n hidden" id="bellN"></span></button>
+    <button class="avatar" id="accountBtn" data-act="account" title="Tài khoản">?</button>
+  </div>
+</header>
+<main id="view"></main>
+<div id="modal" class="modal hidden"><div class="modal-box"><div id="modalBody"></div></div></div>
+<div id="toast" class="toast hidden"></div>
+<script src="/static/vendor/qrcode.min.js"></script>
+<script src="/static/vendor/html2canvas.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

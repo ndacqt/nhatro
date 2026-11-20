@@ -1,0 +1,20 @@
+# ===== DỮ LIỆU THẬT – KHÔNG BAO GIỜ ĐƯA LÊN GIT =====
+# CSDL từng tòa, ảnh phòng / đồng hồ, tài khoản & phiên đăng nhập, API key AI, khóa ký mã QR
+app/data/
+# File Excel gốc có tên, SĐT khách, số tài khoản ngân hàng
+*.xlsm
+*.xlsx
+*.xls
+~$*
+
+# Gói phát hành tạo bởi package.py
+dist/
+
+# Python / hệ điều hành / công cụ
+__pycache__/
+*.pyc
+.claude/
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
