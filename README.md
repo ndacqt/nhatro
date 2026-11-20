@@ -58,14 +58,14 @@ Cổng mặc định 8686; đổi bằng biến môi trường `PORT`.
 
 ## 2. Vai trò & tài khoản
 
-**Số điện thoại là tên đăng nhập** của mọi tài khoản (nhập `0912 345 678`, `0912.345.678`, `+84912345678` đều được).
+**Số điện thoại là tên đăng nhập** của chủ trọ, quản lý, Sales (nhập `0912 345 678`, `0912.345.678`, `+84912345678` đều được). Khách thuê dùng **tài khoản phòng** cố định dạng `<mã chủ nhà>-<mã tòa>-<mã phòng>`, ví dụ `ct001-s01-p101`.
 
 | Vai trò | Có tài khoản bằng cách | Thấy / làm được |
 |---|---|---|
 | **Chủ trọ** | Tự đăng ký (chọn Chủ trọ) | Toàn quyền các tòa của mình: phòng, thu chi, bill, hợp đồng, thành viên, Sales, chia sẻ / sang nhượng tòa |
 | **Quản lý / Chỉ xem** (thành viên tòa) | Chủ trọ thêm theo SĐT ở **Cài đặt → Thành viên** (SĐT đã có tài khoản thì chỉ gắn vào tòa) | Theo quyền chủ cấp; mặc định *Quản lý*: nhập chỉ số, thu tiền, phòng / khách / ảnh, thu thêm, chi phí – không sửa giá, bill, số tài khoản, cài đặt |
 | **Sales** | Tự đăng ký (chọn Sales) | Chỉ trang **Tìm phòng**: phòng trống / sắp trống chủ trọ công khai hoặc gửi riêng; không thấy khách thuê, hóa đơn, số tài khoản |
-| **Khách thuê** | Tự đăng ký (chọn Khách thuê) rồi quét **mã QR phòng** in trên bill; hoặc chủ tạo tự động theo SĐT phòng và gửi mã QR kích hoạt | Hóa đơn phòng mình (tháng này + lịch sử), mã QR thanh toán, báo "đã chuyển khoản" |
+| **Khách thuê** | Không đăng ký – chủ trọ cấp **tài khoản phòng** (tự tạo khi phòng có khách) và gửi **mã kích hoạt**; khách tự đặt mật khẩu | Hóa đơn phòng (tháng này + lịch sử từ ngày vào), mã QR thanh toán, báo "đã chuyển khoản" |
 
 ### Phân quyền chi tiết (thành viên tòa)
 Ở bảng Thành viên, chủ trọ tích / bỏ từng quyền cho từng người:
@@ -94,9 +94,12 @@ Máy chủ kiểm tra quyền ở **mọi thao tác** (chỉ tính những trư�
 ### Hợp đồng sắp hết hạn
 Ngày ra của phòng (tự cập nhật khi tạo hợp đồng) → chuông 🔔 + Tổng quan báo các phòng còn ≤ *N* ngày (mặc định 30). Mỗi phòng có: **💬 Nhắc khách tái ký** (tin nhắn mẫu + mở Zalo), **✓ Đã tái ký** (gia hạn, tạo hợp đồng mới), **🚪 Khách sẽ ra → báo Sales** (chuyển *Sắp trống* và gửi danh bạ Sales).
 
-### Tài khoản app của khách & gửi bill
-- Lưu phòng có SĐT khách → app **tự tạo tài khoản khách** (SĐT mới) và hiện mã QR kích hoạt, hoặc **chỉ gắn phòng** nếu SĐT đã có tài khoản. Phòng chuyển *Trống* → tự ngắt (khách cũ vẫn xem lịch sử thời gian đã ở).
-- Tab Phòng → **📱 Tài khoản app cho mọi khách**: làm cho cả tòa một lần.
+### Tài khoản phòng của khách & gửi bill
+- Mỗi phòng có **một tài khoản cố định** `<mã chủ nhà>-<mã tòa>-<mã phòng>` (ở chung dùng chung). **Mã chủ nhà** đặt ở Cài đặt (mặc định `CT` + số); đổi mã chủ nhà / mã phòng thì tên tài khoản đổi theo, mật khẩu giữ nguyên.
+- Phòng có khách mà chưa có tài khoản → app tự tạo khi lưu phòng và hiện **mã kích hoạt** (QR + link, dùng 1 lần, hạn 14 ngày) để gửi khách; khách mở link, **tự đặt mật khẩu**.
+- **Khách mới** (đổi *Ngày vào*, hoặc phòng từ *Trống* sang có người) → app **tự reset** tài khoản: khách cũ bị đăng xuất, mật khẩu cũ mất hiệu lực, lịch sử hóa đơn tính lại từ tháng vào, sinh mã kích hoạt mới. Cũng có nút **🔄 Khách mới – reset tài khoản**.
+- Phòng chuyển *Trống* → tài khoản bị khóa. Khách quên mật khẩu → **Gửi lại mã kích hoạt** (giữ lịch sử).
+- Tab Phòng → **📱 Tài khoản app cho mọi khách**: tạo cho cả tòa một lần.
 - **Tự gửi bill qua app** (Cài đặt, mặc định bật lúc 20:00): mỗi ngày gửi các bill đã nhập đủ chỉ số. Vẫn có nút gửi tay ở tab Bill.
 - Khách bấm *Tôi đã chuyển khoản* → chủ nhận thông báo → **✓ Xác nhận đã thu**.
 
@@ -123,10 +126,10 @@ Sheet: Thông tin, Tổng hợp theo tháng (thu / chi / lãi / biên / kWh), Th
 
 ## 5. Khách thuê
 
-- Quét **mã QR phòng** in cuối bill (hoặc chủ gửi qua Zalo) → đăng ký / đăng nhập bằng SĐT → thấy **hóa đơn tháng này** (mã QR thanh toán) và **hóa đơn các tháng trước** từ ngày vào ở. Nhiều người ở chung phòng đều quét được.
-- Mã QR phòng có chữ ký bí mật; tự hết hiệu lực khi phòng đổi khách (đổi ngày vào) hoặc chuyển Trống; chủ có nút **Đổi mã**.
+- Nhận **mã kích hoạt** từ chủ trọ (QR / link qua Zalo) → tự đặt mật khẩu → đăng nhập bằng **tài khoản phòng** (vd `ct001-s01-p101`) → thấy **hóa đơn tháng này** (mã QR thanh toán) và **hóa đơn các tháng trước** từ ngày vào ở.
+- **Mã QR in cuối bill** mở trang đăng nhập với tài khoản phòng điền sẵn. Mã có chữ ký bí mật; tự hết hiệu lực khi phòng đổi khách hoặc chuyển Trống; chủ có nút **Đổi mã**.
 - Nút **Tôi đã chuyển khoản**, **Lưu ảnh hóa đơn**, gọi / Zalo chủ trọ; chuông báo hóa đơn chưa thanh toán; *Bật thông báo* (cần HTTPS).
-- Chủ trọ / Sales cũng đang thuê phòng ở đâu đó: **Tài khoản → 🧾 Hóa đơn phòng tôi thuê**.
+- Khách cũ mất quyền xem khi có khách mới vào phòng – muốn giữ hóa đơn thì **Lưu ảnh hóa đơn** trước khi trả phòng.
 
 ---
 
@@ -204,8 +207,8 @@ app/
 ## 10. Bảo mật & giới hạn
 
 - Mật khẩu băm PBKDF2‑SHA256 (200.000 vòng); đăng nhập sai bị làm chậm; phiên 30 ngày, đổi mật khẩu đăng xuất thiết bị khác.
-- **Không xác minh SĐT bằng OTP** – ai cũng đăng ký được bằng SĐT người khác (riêng tài khoản khách do chủ tạo sẵn phải kích hoạt bằng mã QR). Cần dịch vụ SMS OTP nếu muốn xác minh thật.
-- Ai có ảnh bill (có mã QR phòng) xem được lịch sử hóa đơn phòng đó trong thời gian khách hiện tại – lộ thì bấm **Đổi mã**.
+- **Không xác minh SĐT bằng OTP** – ai cũng đăng ký Chủ trọ / Sales được bằng SĐT người khác. Cần dịch vụ SMS OTP nếu muốn xác minh thật.
+- Tài khoản phòng chỉ vào được sau khi khách dùng **mã kích hoạt** chủ gửi; mã QR trên bill chỉ điền sẵn tên tài khoản, không thay được mật khẩu. Tên tài khoản phòng đoán được (theo quy tắc mã) nên mật khẩu do khách đặt là lớp bảo vệ chính.
 - App chạy trên máy chủ trọ: tắt máy là điện thoại / Sales / khách không vào được, bill tự gửi sẽ gửi bù khi mở lại. Muốn dùng mọi lúc, mọi nơi, có nút *Cài đặt app*, thông báo đẩy khi app đóng: cần đưa lên máy chủ có **HTTPS** (tên miền).
 - Không tự gửi SMS / Zalo / email: thông báo nằm trong app (chuông), còn Zalo là *copy + mở chat* để chủ bấm gửi.
 - Hợp đồng mẫu chỉ là mẫu tham khảo, không phải tư vấn pháp lý.

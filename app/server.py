@@ -202,6 +202,8 @@ DEFAULT_SETTINGS = {
     "auto_publish": True, "auto_publish_hour": 20,
     # khu vực (Quận/Huyện, Tỉnh/TP) – để Sales lọc phòng theo khu vực
     "area": "",
+    # mã chủ nhà: phần đầu tên đăng nhập tài khoản phòng (<mã chủ nhà>-<mã tòa>-<mã phòng>); trống = tự đặt CT<số>
+    "owner_code": "",
     # nhắc hết hạn hợp đồng trước bao nhiêu ngày + tin nhắn mẫu gửi khách
     "remind_days": 30,
     "renew_message": (
@@ -441,6 +443,16 @@ def verify_room_token(tok):
             "address": s.get("address") or "", "auto_publish": s.get("auto_publish", True)}
 
 
+def owner_code(b, con):
+    """Mã chủ nhà của tòa (Cài đặt). Chưa đặt -> tự đặt CT + số thứ tự tài khoản chủ trọ đầu tiên của tòa, lưu lại cố định."""
+    s = get_settings(con)
+    code = re.sub(r"[^A-Za-z0-9]", "", s.get("owner_code") or "")
+    if not code:
+        code = "CT%03d" % (auth.first_admin_id(b) or 1)
+        con.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('owner_code',?)", (json.dumps(code),))
+    return code
+
+
 def area_of(s):
     """Khu vực của tòa: ô 'Khu vực' trong Cài đặt, nếu trống thì lấy 2 phần cuối của địa chỉ (vd 'Quận 3, TP.HCM')."""
     if (s.get("area") or "").strip():
@@ -457,6 +469,7 @@ def dump_all(b, scope=None):
     scope = scope or {}
     since = int(scope.get("from_period") or 0)
     with conn(b) as con:
+        owner_code(b, con)  # đảm bảo tòa có mã chủ nhà (đặt tên tài khoản phòng)
         d = {
             "settings": get_settings(con),
             "rooms": rows(con, "SELECT * FROM rooms ORDER BY sort, code"),
@@ -613,9 +626,10 @@ class Handler(BaseHTTPRequestHandler):
             u = auth.user_by_token(self.token())
             self.send_json({"user": u, "first": auth.user_count() == 0})
             return True
-        if p == ["api", "room-claim-info"]:  # quét QR phòng: chỉ trả tên nhà + mã phòng (chưa cần đăng nhập)
+        if p == ["api", "room-claim-info"]:  # quét QR trên bill: tên nhà, mã phòng + tài khoản phòng để điền sẵn khi đăng nhập
             info = verify_room_token((parse_qs(urlparse(self.path).query).get("token") or [""])[0])
-            self.send_json({"house": info["house"], "room": info["room"]["code"], "address": info["address"], "building": info["building"]})
+            self.send_json({"house": info["house"], "room": info["room"]["code"], "address": info["address"], "building": info["building"],
+                            "username": auth.room_account_username(info["building"], info["room"]["code"])})
             return True
         if p == ["api", "setup-info"]:  # khách quét QR: xem tài khoản sắp đặt mật khẩu
             self.send_json(auth.setup_info((parse_qs(urlparse(self.path).query).get("token") or [""])[0]))
@@ -630,16 +644,8 @@ class Handler(BaseHTTPRequestHandler):
         if p == ["api", "register"]:
             d = self.body_json()
             first = auth.user_count() == 0
-            # tự đăng ký: chủ trọ, sales hoặc khách thuê (nhân viên do chủ trọ tạo)
-            kind = d.get("kind") if d.get("kind") in ("sales", "tenant") else "owner"
-            if d.get("room_token"):  # khách quét QR phòng: SĐT đã được chủ tạo sẵn -> kích hoạt luôn
-                info = verify_room_token(d["room_token"])
-                act = auth.activate_with_claim(d.get("username"), d.get("password"), info["building"], info["room"]["code"],
-                                               info["room"]["phone"])
-                if act:
-                    tok, u = act
-                    self.send_json({"user": u, "first": False}, cookie=tok)
-                    return True
+            # tự đăng ký: chủ trọ hoặc sales. Nhân viên do chủ trọ thêm; khách dùng tài khoản phòng chủ trọ cấp.
+            kind = "sales" if d.get("kind") == "sales" else "owner"
             u = auth.register(d.get("username"), d.get("name"), d.get("password"), kind=kind, phone=d.get("phone"))
             if first:
                 auth.claim_orphans(all_building_codes())
@@ -815,22 +821,28 @@ class Handler(BaseHTTPRequestHandler):
                                   "phone": s.get("landlord_phone") or s.get("phone") or (admins[0]["phone"] if admins else "")}})
         return out
 
-    def sync_room_tenant(self, b, r):
-        """Tự động theo SĐT phòng: tạo tài khoản khách (hoặc gắn tài khoản SĐT đã có) khi phòng có người thuê;
-        ngắt khi phòng chuyển sang Trống. Trả về thông tin để giao diện báo lại chủ trọ."""
+    def room_user(self, b, code):
+        with conn(b) as con:
+            return auth.room_username(owner_code(b, con), b, code)
+
+    def sync_room_tenant(self, b, r, old=None, reset=False):
+        """Tài khoản cố định theo phòng (<mã chủ nhà>-<mã tòa>-<mã phòng>):
+        - phòng có khách mà chưa có tài khoản -> tạo + mã kích hoạt
+        - khách mới (đổi ngày vào, hoặc phòng từ Trống chuyển sang có người) -> reset: lịch sử từ tháng vào, mật khẩu mới
+        - phòng chuyển Trống -> khóa tài khoản (khách cũ không vào được nữa)"""
         today_ = date.today()
         cur = today_.year * 100 + today_.month
         if r["status"] == "Trống":
-            return {"ended": auth.end_tenant(b, r["code"], cur)} if r["code"] else None
-        phone = auth.norm_phone(r["phone"])
-        if not phone:
-            return None
-        if not auth.PHONE_RE.match(phone):
-            return {"error": f"SĐT “{r['phone']}” không hợp lệ – chưa tạo được tài khoản app cho khách"}
+            n = auth.disable_room_account(b, r["code"])
+            return {"disabled": n, "room_code": r["code"], "room_id": r["id"]} if n else None
+        new_tenant = reset or bool(old and (old["status"] == "Trống" or (r["move_in"] and r["move_in"] != old["move_in"])))
         try:
-            res = auth.link_tenant(b, r["code"], phone, r["tenant"], period_of(r["move_in"]) or cur, self.user["id"])
+            res = auth.ensure_room_account(b, r["code"], self.room_user(b, r["code"]), r["tenant"] or "",
+                                           period_of(r["move_in"]) or cur, self.user["id"], reset=new_tenant)
         except auth.AuthError as e:
             return {"error": str(e)}
+        if not (res["created"] or res["reset"]) and old is not None:
+            return None  # không có gì mới để báo chủ trọ
         return dict(res, room_code=r["code"], room_id=r["id"])
 
     def tenant_report_paid(self, d):
@@ -1031,16 +1043,6 @@ class Handler(BaseHTTPRequestHandler):
                     raise PermissionError("Phòng không mở cho bạn")
                 return self.send_json(self.lock_room(b, rid, self.body_json().get("note"), by_owner=False))
             return self.send_json(self.unlock_room(b, rid, by_owner=False))
-        if p == ["api", "room-claim"]:  # đã đăng nhập + quét QR phòng -> xem lịch sử hóa đơn phòng
-            info = verify_room_token(self.body_json().get("token"))
-            b, code = info["building"], info["room"]["code"]
-            new = auth.claim_room(b, code, self.user["id"], info["since"])
-            if info["auto_publish"]:  # chủ bật tự gửi: các bill đủ chỉ số của khách hiện tại hiện luôn
-                now = datetime.now().strftime("%Y-%m-%d %H:%M")
-                with _lock, conn(b) as con:
-                    con.execute("UPDATE bills SET published_at=? WHERE room_code=? AND published_at='' AND period>=? "
-                                "AND (new_idx IS NOT NULL OR manual_kwh>0)", (now, code, info["since"]))
-            return self.send_json({"building": b, "room": code, "house": info["house"], "new": new})
         if self.user["kind"] == "tenant":
             raise PermissionError("Tài khoản khách chỉ xem hóa đơn của mình")
         if p == ["api", "sales-contacts"]:
@@ -1080,8 +1082,8 @@ class Handler(BaseHTTPRequestHandler):
             for r in rooms_:
                 if r["status"] == "Trống":
                     continue
-                res = self.sync_room_tenant(b, r)
-                out.append(dict(res or {"skipped": "chưa có SĐT"}, room_code=r["code"], room_id=r["id"], tenant=r["tenant"]))
+                res = self.sync_room_tenant(b, r)  # old=None: chỉ tạo tài khoản còn thiếu, không reset
+                out.append(dict(res, room_code=r["code"], room_id=r["id"], tenant=r["tenant"]))
             return self.send_json(out)
         if len(p) == 4 and p[:2] == ["api", "rooms"] and p[3] == "tenant-account":
             self.need("rooms")
@@ -1091,24 +1093,24 @@ class Handler(BaseHTTPRequestHandler):
             if not r:
                 return self.send_json({"error": "Không có phòng"}, 404)
             act = d.get("action") or "create"
-            if act == "create":
+            if act in ("create", "new_tenant"):  # tạo tài khoản phòng / khách mới: reset lịch sử + mật khẩu
                 with conn(b) as con:
                     full = dict(con.execute("SELECT * FROM rooms WHERE id=?", (int(p[2]),)).fetchone())
-                res = self.sync_room_tenant(b, dict(full, status=full["status"] if full["status"] != "Trống" else "Đang thuê"))
-                if not res or res.get("error"):
-                    raise auth.AuthError((res or {}).get("error") or "Phòng chưa có SĐT khách hợp lệ")
+                if full["status"] == "Trống":
+                    raise auth.AuthError("Phòng đang Trống – chuyển sang Đang thuê trước khi cấp tài khoản cho khách")
+                res = self.sync_room_tenant(b, full, reset=(act == "new_tenant"))
+                if res.get("error"):
+                    raise auth.AuthError(res["error"])
                 return self.send_json(res)
-            if act == "reset":
-                return self.send_json({"setup_token": auth.reset_tenant(b, r["code"])})
+            if act == "resend":  # gửi lại mã kích hoạt (quên mật khẩu) – giữ lịch sử
+                return self.send_json(auth.resend_room_setup(b, r["code"]))
             if act == "rotate-qr":  # đổi mã QR phòng: mã cũ trên bill hết hiệu lực
                 with _lock, conn(b) as con:
                     con.execute("UPDATE rooms SET qr_salt=? WHERE id=?", (uuid.uuid4().hex[:8], int(p[2])))
                     row = dict(con.execute("SELECT * FROM rooms WHERE id=?", (int(p[2]),)).fetchone())
                 return self.send_json({"access_token": room_token(b, row)})
-            if act == "end":  # khách trả phòng: ngắt tài khoản nhưng giữ lịch sử hóa đơn đã ở
-                t = date.today()
-                auth.end_tenant(b, r["code"], t.year * 100 + t.month)
-                return self.send_json({"ok": True})
+            if act == "end":  # khách trả phòng: khóa tài khoản phòng
+                return self.send_json({"disabled": auth.disable_room_account(b, r["code"])})
             return self.send_json({"error": "action?"}, 400)
         if p == ["api", "bills", "publish"]:  # gửi bill cho khách qua app
             self.need("payments")
@@ -1287,6 +1289,12 @@ class Handler(BaseHTTPRequestHandler):
                 new = self.body_json()
                 diff = [k for k, v in new.items() if json.dumps(v, ensure_ascii=False, sort_keys=True) != json.dumps(cur.get(k), ensure_ascii=False, sort_keys=True)]
                 self.need(*sorted({SETTING_CAP.get(k, "settings") for k in diff}))
+                if "owner_code" in diff:  # đổi mã chủ nhà -> đổi tên đăng nhập mọi tài khoản phòng của tòa
+                    oc = re.sub(r"[^A-Za-z0-9]", "", new["owner_code"] or "")
+                    if not oc:
+                        raise auth.AuthError("Mã chủ nhà chỉ gồm chữ và số, không để trống")
+                    new["owner_code"] = oc
+                    auth.rename_building_accounts(b, lambda code: auth.room_username(oc, b, code))
                 for k in diff:
                     con.execute("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)", (k, json.dumps(new[k], ensure_ascii=False)))
                 return self.send_json(get_settings(con))
@@ -1301,16 +1309,17 @@ class Handler(BaseHTTPRequestHandler):
                 if t == "rooms" and "code" in data:
                     for tb in ("bills", "extras", "expenses"):
                         con.execute(f"UPDATE {tb} SET room_code=? WHERE room_code=?", (data["code"], old["code"]))
-                    auth.rename_room(b, old["code"], data["code"])
+                    auth.rename_room(b, old["code"], data["code"], auth.room_username(owner_code(b, con), b, data["code"]))
                 if data:
                     con.execute(f"UPDATE {t} SET {','.join(k + '=?' for k in data)} WHERE id=?", [*data.values(), rid])
                 if t == "rooms" and data.get("listing") and not old["listing"] and old["lock_at"]:
                     # chủ mở lại phòng cho Sales (lần trống mới) -> xóa trạng thái chốt cũ
                     con.execute("UPDATE rooms SET lock_by=NULL, lock_by_name='', lock_at='', lock_note='' WHERE id=?", (rid,))
                 row = dict(con.execute(f"SELECT * FROM {t} WHERE id=?", (rid,)).fetchone())
-                if t == "rooms" and {"phone", "status", "tenant", "move_in"} & set(data):
-                    # đổi SĐT / trạng thái -> tự tạo, gắn hoặc ngắt tài khoản app của khách
-                    row["_tenant"] = self.sync_room_tenant(b, row)
+                if t == "rooms" and {"status", "move_in"} & set(data):
+                    # khách mới (đổi ngày vào / từ Trống sang có người) -> reset tài khoản phòng; phòng Trống -> khóa
+                    con.commit()  # ghi trước khi đồng bộ (tránh 2 kết nối giữ khóa nhau)
+                    row["_tenant"] = self.sync_room_tenant(b, row, old=dict(old))
                 return self.send_json(row)
         self.send_json({"error": "not found"}, 404)
 

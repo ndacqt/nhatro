@@ -436,6 +436,15 @@ def shared_buildings(uid):
         con.close()
 
 
+def first_admin_id(building):
+    con = udb()
+    try:
+        r = con.execute("SELECT MIN(user_id) FROM memberships WHERE building=? AND role='admin'", (building,)).fetchone()
+        return r[0] if r else None
+    finally:
+        con.close()
+
+
 def building_admins(building):
     con = udb()
     try:
@@ -640,110 +649,117 @@ def _setup_token(con, uid, days=14):
     return tok
 
 
-def link_tenant(building, room_code, phone, name, since_period, by_uid):
-    """Tạo (hoặc dùng lại) tài khoản khách theo SĐT và gắn vào phòng. Trả về tài khoản + mã đặt mật khẩu (nếu cần)."""
-    phone = norm_phone(phone)
-    if len(phone) < 9:
-        raise AuthError("Phòng chưa có SĐT khách hợp lệ – nhập SĐT ở form phòng trước")
+def room_username(owner_code, building, room_code):
+    """Tên đăng nhập cố định của phòng: <mã chủ nhà>-<mã tòa>-<mã phòng>, vd ct001-s01-p101."""
+    part = lambda s: re.sub(r"[^a-z0-9]", "", (s or "").lower())  # noqa: E731
+    return f"{part(owner_code)}-{part(building)}-{part(room_code)}"
+
+
+def _room_account(con, building, room_code):
+    return con.execute("SELECT u.*, l.id AS link_id, l.since_period FROM tenant_links l JOIN users u ON u.id=l.user_id "
+                       "WHERE l.building=? AND l.room_code=? AND l.active=1 AND u.kind='tenant' ORDER BY l.id DESC LIMIT 1",
+                       (building, room_code)).fetchone()
+
+
+def _lock_account(con, uid):
+    """Mật khẩu ngẫu nhiên + đăng xuất mọi thiết bị: không ai (kể cả khách cũ) vào được tới khi kích hoạt lại."""
+    salt = secrets.token_hex(16)
+    con.execute("UPDATE users SET pw_hash=?, salt=?, pw_set=0 WHERE id=?", (_hash(secrets.token_hex(16), salt), salt, uid))
+    con.execute("DELETE FROM sessions WHERE user_id=?", (uid,))
+    con.execute("DELETE FROM setup_tokens WHERE user_id=?", (uid,))
+
+
+def ensure_room_account(building, room_code, username, display_name, since_period, by_uid, reset=False):
+    """Tài khoản cố định của phòng (1 phòng = 1 tài khoản, ở chung dùng chung).
+    reset=True (khách mới): lịch sử tính lại từ since_period, mật khẩu cũ mất hiệu lực, sinh mã kích hoạt mới."""
     con = udb()
     try:
-        # SĐT đã có tài khoản (kể cả chủ trọ / sales thuê phòng) -> chỉ gắn phòng vào tài khoản đó
-        u = con.execute("SELECT * FROM users WHERE username=?", (phone,)).fetchone()
+        u = _room_account(con, building, room_code)
         created = False
         if not u:
+            if con.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
+                raise AuthError(f"Tên tài khoản {username} đã bị dùng – đổi mã chủ nhà / mã phòng")
             salt = secrets.token_hex(16)
-            cur = con.execute("INSERT INTO users(username,name,pw_hash,salt,kind,phone,created_by,pw_set) VALUES(?,?,?,?,?,?,?,0)",
-                              (phone, (name or "").strip(), _hash(secrets.token_hex(16), salt), salt, "tenant", phone, by_uid))
-            u = con.execute("SELECT * FROM users WHERE id=?", (cur.lastrowid,)).fetchone()
-            created = True
-        # phòng chỉ có 1 tài khoản khách đang hoạt động: ngắt tài khoản cũ (giữ lịch sử hóa đơn của họ)
-        con.execute("UPDATE tenant_links SET active=0, until_period=COALESCE(until_period, ?) WHERE building=? AND room_code=? AND active=1 AND user_id<>?",
-                    (since_period - 1 if since_period % 100 != 1 else since_period - 89, building, room_code, u["id"]))
-        new_link = not con.execute("SELECT 1 FROM tenant_links WHERE building=? AND room_code=? AND user_id=? AND active=1",
-                                   (building, room_code, u["id"])).fetchone()
-        if new_link:
+            cur = con.execute("INSERT INTO users(username,name,pw_hash,salt,kind,created_by,pw_set) VALUES(?,?,?,?,?,?,0)",
+                              (username, display_name or "", _hash(secrets.token_hex(16), salt), salt, "tenant", by_uid))
             con.execute("INSERT INTO tenant_links(user_id,building,room_code,since_period,created_by) VALUES(?,?,?,?,?)",
-                        (u["id"], building, room_code, since_period, by_uid))
-        # chỉ sinh mã QR khi vừa tạo tài khoản (lưu phòng lại không làm mã đã gửi khách mất hiệu lực)
-        tok = _setup_token(con, u["id"]) if created else None
+                        (cur.lastrowid, building, room_code, since_period, by_uid))
+            u = _room_account(con, building, room_code)
+            created = True
+        elif u["username"] != username:  # đổi mã chủ nhà / mã phòng -> đổi tên đăng nhập theo
+            con.execute("UPDATE users SET username=? WHERE id=?", (username, u["id"]))
+        if reset and not created:
+            _lock_account(con, u["id"])
+            con.execute("UPDATE tenant_links SET since_period=? WHERE id=?", (since_period, u["link_id"]))
+            con.execute("UPDATE users SET name=? WHERE id=?", (display_name or "", u["id"]))
+        tok = _setup_token(con, u["id"]) if created or reset else None
         con.commit()
-        return {"username": u["username"], "created": created, "new_link": new_link, "setup_token": tok, "kind": u["kind"],
-                "activated": bool(u["pw_set"])}
+        activated = bool(con.execute("SELECT pw_set FROM users WHERE id=?", (u["id"],)).fetchone()[0])
+        return {"username": username, "created": created, "reset": bool(reset and not created), "setup_token": tok, "activated": activated}
     finally:
         con.close()
 
 
-def reset_tenant(building, room_code):
-    """Tạo lại mã QR đặt mật khẩu cho khách đang ở phòng (khách quên mật khẩu / đổi máy)."""
+def resend_room_setup(building, room_code):
+    """Gửi lại mã kích hoạt (khách quên mật khẩu / chưa kịp đặt) – không xóa lịch sử."""
     con = udb()
     try:
-        r = con.execute("SELECT l.user_id, u.kind FROM tenant_links l JOIN users u ON u.id=l.user_id "
-                        "WHERE l.building=? AND l.room_code=? AND l.active=1", (building, room_code)).fetchone()
-        if not r:
+        u = _room_account(con, building, room_code)
+        if not u:
             raise AuthError("Phòng chưa có tài khoản khách")
-        if r["kind"] != "tenant":  # tài khoản người dùng tự đăng ký: chủ trọ không được đặt lại mật khẩu hộ
-            raise AuthError("SĐT này là tài khoản người dùng tự đăng ký – họ tự đổi / lấy lại mật khẩu, chủ trọ không tạo mã QR được")
-        tok = _setup_token(con, r["user_id"])
+        tok = _setup_token(con, u["id"])
         con.commit()
-        return tok
+        return {"username": u["username"], "setup_token": tok}
     finally:
         con.close()
 
 
-def claim_room(building, room_code, uid, since_period):
-    """Khách quét mã QR phòng (trên bill / chủ gửi): gắn phòng vào tài khoản. Cho phép nhiều người ở chung."""
+def disable_room_account(building, room_code):
+    """Phòng trống: khóa tài khoản phòng (khách cũ không vào được nữa)."""
     con = udb()
     try:
-        ex = con.execute("SELECT id FROM tenant_links WHERE building=? AND room_code=? AND user_id=? AND active=1",
-                         (building, room_code, uid)).fetchone()
-        if not ex:
-            con.execute("INSERT INTO tenant_links(user_id,building,room_code,since_period) VALUES(?,?,?,?)",
-                        (uid, building, room_code, since_period))
-            con.commit()
-        return not ex
-    finally:
-        con.close()
-
-
-def activate_with_claim(phone, password, building, room_code, room_phone):
-    """Tài khoản khách chủ đã tạo sẵn (chưa kích hoạt): cho tự đặt mật khẩu nếu khách cầm mã QR đúng phòng của mình."""
-    if len(password or "") < 6:
-        raise AuthError("Mật khẩu tối thiểu 6 ký tự")
-    phone = norm_phone(phone)
-    con = udb()
-    try:
-        u = con.execute("SELECT * FROM users WHERE username=?", (phone,)).fetchone()
-        if not u or u["kind"] != "tenant" or u["pw_set"]:
-            return None
-        linked = con.execute("SELECT 1 FROM tenant_links WHERE user_id=? AND building=? AND room_code=? AND active=1",
-                             (u["id"], building, room_code)).fetchone()
-        if not linked and norm_phone(room_phone) != phone:
-            raise AuthError("SĐT này đã được chủ trọ tạo tài khoản cho phòng khác – dùng mã QR kích hoạt chủ trọ gửi")
-        salt = secrets.token_hex(16)
-        con.execute("UPDATE users SET pw_hash=?, salt=?, pw_set=1 WHERE id=?", (_hash(password, salt), salt, u["id"]))
-        con.execute("DELETE FROM setup_tokens WHERE user_id=?", (u["id"],))
+        u = _room_account(con, building, room_code)
+        if not u:
+            return 0
+        _lock_account(con, u["id"])
         con.commit()
+        return 1
     finally:
         con.close()
-    return login(phone, password)
 
 
-def rename_room(building, old_code, new_code):
+def room_account_username(building, room_code):
     con = udb()
     try:
+        u = _room_account(con, building, room_code)
+        return u["username"] if u else ""
+    finally:
+        con.close()
+
+
+def rename_room(building, old_code, new_code, new_username=None):
+    con = udb()
+    try:
+        u = _room_account(con, building, old_code)
         con.execute("UPDATE tenant_links SET room_code=? WHERE building=? AND room_code=?", (new_code, building, old_code))
+        if u and new_username:
+            con.execute("UPDATE users SET username=? WHERE id=?", (new_username, u["id"]))
         con.commit()
     finally:
         con.close()
 
 
-def end_tenant(building, room_code, until_period):
+def rename_building_accounts(building, make_name):
+    """Đổi mã chủ nhà -> đổi tên đăng nhập mọi tài khoản phòng của tòa. make_name(room_code) -> tên mới."""
     con = udb()
     try:
-        n = con.execute("UPDATE tenant_links SET active=0, until_period=? WHERE building=? AND room_code=? AND active=1",
-                        (until_period, building, room_code)).rowcount
+        for r in con.execute("SELECT l.room_code, u.id FROM tenant_links l JOIN users u ON u.id=l.user_id "
+                             "WHERE l.building=? AND l.active=1 AND u.kind='tenant'", (building,)).fetchall():
+            new = make_name(r["room_code"])
+            if con.execute("SELECT 1 FROM users WHERE username=? AND id<>?", (new, r["id"])).fetchone():
+                raise AuthError(f"Tên tài khoản {new} đã bị dùng – chọn mã chủ nhà khác")
+            con.execute("UPDATE users SET username=? WHERE id=?", (new, r["id"]))
         con.commit()
-        return n
     finally:
         con.close()
 

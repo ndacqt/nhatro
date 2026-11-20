@@ -250,7 +250,7 @@ const CAP_RULES = [
   ['[data-act=idcardScan],[data-act=newContract],[data-act=delContract],#cf [name],#cSave', 'rooms'],
   ['#sf [name^=landlord],#sf [name=contract_place],#sf [name=remind_days],#sf [name^=auto_publish]', 'settings'],
   ['[data-act=syncTenants],[data-act=sendSetupQr],[data-act=rotateRoomQr],[data-act=ownerLock],[data-act=ownerUnlock],[data-act=unlistLocked]', 'rooms'],
-  ['#sf [name=area]', 'settings'],
+  ['#sf [name=area],#sf [name=owner_code]', 'settings'],
   ['[data-act=leaseRemind],[data-act=leaseRenew],[data-act=leaseLeaving],[data-act=shareSalesRoom],[data-act=tenantQr],[data-act=tenantEnd]', 'rooms'],
   ['[data-act=publishBill],[data-act=confirmClaim]', 'payments'],
   ['input[data-f=paid],[data-act=togglePaid]', 'payments'],
@@ -299,7 +299,8 @@ function showLogin(msg, mode = 'login') {
   closeModal();
   document.body.classList.add('locked');
   const reg = mode === 'register';
-  const regKind = CLAIM_INFO ? 'tenant' : 'owner';
+  const regKind = 'owner';
+  const roomUser = !reg && CLAIM_INFO && CLAIM_INFO.username;  // quét QR trên bill -> điền sẵn tài khoản phòng
   view.innerHTML = `<div class="login card" style="text-align:left">
   <div style="text-align:center"><div class="logo" style="display:inline-grid;width:48px;height:48px;font-size:26px;border-radius:12px">⌂</div>
   <h2 style="margin-top:10px">${CLAIM_INFO ? 'Hóa đơn phòng ' + esc(CLAIM_INFO.room) : 'Quản lý nhà trọ'}</h2>
@@ -307,8 +308,9 @@ function showLogin(msg, mode = 'login') {
   <div class="seg" style="margin:14px 0"><button class="${reg ? '' : 'on'}" data-act="authMode" data-m="login">Đăng nhập</button><button class="${reg ? 'on' : ''}" data-act="authMode" data-m="register">Đăng ký</button></div>
   ${msg ? `<p class="${/sai|không|lỗi|đã có|tối thiểu|hết hạn/i.test(msg) ? 'pill danger' : 'muted'}" style="display:block;white-space:normal;padding:8px 10px;margin-bottom:10px">${esc(msg)}</p>` : ''}
   <form id="authF" class="grid" style="gap:10px">
-    <div class="field"><label>Số điện thoại</label><input name="username" type="tel" inputmode="tel" autocomplete="tel" placeholder="vd: 0912345678" required${reg ? ' pattern="[0-9 .+]{9,15}"' : ''}></div>
-    ${reg ? `<div class="field"><label>Bạn là</label><div class="seg" id="kindSeg">${[['tenant', '🧾 Khách thuê'], ['owner', '🏠 Chủ trọ'], ['sales', '🤝 Sales']]
+    ${reg ? `<div class="field"><label>Số điện thoại</label><input name="username" type="tel" inputmode="tel" autocomplete="tel" placeholder="vd: 0912345678" required pattern="[0-9 .+]{9,15}"></div>`
+      : `<div class="field"><label>Số điện thoại / tài khoản phòng</label><input name="username" autocomplete="username" autocapitalize="none" placeholder="vd: 0912345678 hoặc ct001-s01-p101" value="${esc(roomUser || '')}" required></div>`}
+    ${reg ? `<div class="field"><label>Bạn là</label><div class="seg" id="kindSeg">${[['owner', '🏠 Chủ trọ'], ['sales', '🤝 Sales']]
         .map(([k, l]) => `<button type="button" class="${k === regKind ? 'on' : ''}" data-k="${k}">${l}</button>`).join('')}</div>
       <input type="hidden" name="kind" value="${regKind}"></div>
       <div class="field"><label>Họ tên</label><input name="name" autocomplete="name" placeholder="vd: Nguyễn Văn An"></div>` : ''}
@@ -316,10 +318,10 @@ function showLogin(msg, mode = 'login') {
     ${reg ? '<div class="field"><label>Nhập lại mật khẩu</label><input name="password2" type="password" autocomplete="new-password" required></div>' : ''}
     <button class="btn primary" style="justify-content:center;padding:12px" type="submit">${reg ? 'Tạo tài khoản' : 'Đăng nhập'}</button>
   </form>
-  <p class="muted" style="font-size:12px;margin-top:12px">${CLAIM_INFO ? 'Đăng nhập (nếu đã có tài khoản) hoặc Đăng ký bằng số điện thoại – sau đó bạn xem được lịch sử hóa đơn của phòng này.'
-    : reg ? 'Số điện thoại là tên đăng nhập. <b>Khách thuê</b>: xem hóa đơn phòng mình – quét mã QR in trên bill hoặc chủ trọ gửi. <b>Chủ trọ</b>: quản lý tòa nhà. <b>Sales</b>: tìm phòng trống chủ trọ mở cho bạn.'
-    : 'Chưa có tài khoản? Chọn Đăng ký. Khách thuê: quét mã QR trên bill để vào xem hóa đơn.'}</p></div>`;
-  $('#authF [name=username]').focus();
+  <p class="muted" style="font-size:12px;margin-top:12px">${CLAIM_INFO ? (roomUser ? `Tài khoản phòng: <b>${esc(roomUser)}</b>. Nhập mật khẩu bạn đã đặt. Chưa có mật khẩu? Nhờ chủ trọ gửi <b>mã kích hoạt</b> để tự đặt.` : 'Phòng chưa có tài khoản app – nhờ chủ trọ cấp tài khoản phòng và gửi mã kích hoạt.')
+    : reg ? 'Số điện thoại là tên đăng nhập. <b>Chủ trọ</b>: quản lý tòa nhà. <b>Sales</b>: tìm phòng trống chủ trọ mở cho bạn. <b>Khách thuê</b> không cần đăng ký – chủ trọ cấp tài khoản phòng (vd ct001-s01-p101) và gửi mã kích hoạt.'
+    : 'Khách thuê: đăng nhập bằng tài khoản phòng chủ trọ gửi (vd ct001-s01-p101). Chủ trọ / Sales chưa có tài khoản: chọn Đăng ký.'}</p></div>`;
+  $(roomUser ? '#authF [name=password]' : '#authF [name=username]').focus();
   $$('#kindSeg button').forEach(btn => btn.onclick = () => {
     $$('#kindSeg button').forEach(x => x.classList.toggle('on', x === btn));
     $('#authF [name=kind]').value = btn.dataset.k;
@@ -328,7 +330,6 @@ function showLogin(msg, mode = 'login') {
     e.preventDefault();
     const d = formData($('#authF'));
     if (reg && d.password !== d.password2) return showLogin('Mật khẩu nhập lại không khớp', 'register');
-    if (reg && pendingClaim()) d.room_token = pendingClaim();  // cho phép kích hoạt tài khoản chủ đã tạo sẵn theo SĐT
     const r = await fetch(reg ? '/api/register' : '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return showLogin(j.error || 'Lỗi', mode);
@@ -892,22 +893,26 @@ A.saveRoom = async el => {
   const r = id ? await api('PUT', '/api/rooms/' + id, d) : await api('POST', '/api/rooms', d);
   await load(); render();
   const t = r._tenant;
-  if (t && t.created && t.setup_token) return showTenantQr(roomById(r.id), t, true);  // vừa tự tạo tài khoản khách -> gửi QR luôn
-  toast(`Đã lưu ${r.code}` + (!t ? '' : t.error ? ` – ⚠ ${t.error}` : t.ended ? ' – đã ngắt tài khoản app của khách cũ'
-    : t.new_link ? ` – SĐT ${t.username} đã có tài khoản, đã gắn vào phòng (khách đăng nhập như cũ)` : ''), t && (t.error || t.new_link) ? 6000 : 2600);
+  // khách mới -> tài khoản phòng vừa tạo / reset: hiện ngay mã kích hoạt để gửi khách
+  if (t && t.setup_token) return showTenantQr(roomById(r.id), t, true);
+  toast(`Đã lưu ${r.code}` + (!t ? '' : t.error ? ` – ⚠ ${t.error}` : t.disabled ? ' – phòng trống: đã khóa tài khoản phòng (khách cũ không vào được nữa)' : ''),
+    t && (t.error || t.disabled) ? 6000 : 2600);
   if (!id) A.editRoom({ dataset: { id: r.id } }); else closeModal();
 };
 A.syncTenants = async () => {
-  if (!confirm(`Tạo tài khoản app cho mọi khách đang thuê ở ${UI.building} theo SĐT của phòng?\nSĐT đã có tài khoản thì chỉ gắn vào phòng.`)) return;
+  if (!confirm(`Tạo tài khoản phòng (mãchủnhà-mãtòa-mãphòng) cho mọi phòng đang có khách ở ${UI.building}?\nPhòng đã có tài khoản giữ nguyên.`)) return;
   const res = await api('POST', '/api/tenant-accounts/sync');
   S.tenant_links = (await api('GET', '/api/all')).tenant_links;
-  const fresh = res.filter(x => x.created), linked = res.filter(x => x.new_link && !x.created), bad = res.filter(x => x.error || x.skipped);
-  const ok = res.filter(x => x.username && !x.created && !x.new_link);
-  openModal(`<h2>📱 Tài khoản app của khách – ${esc(UI.building)}</h2>
-    <p style="margin-top:10px">✓ Tạo mới <b>${fresh.length}</b> • gắn tài khoản có sẵn <b>${linked.length}</b> • đã có từ trước <b>${ok.length}</b>${bad.length ? ` • chưa tạo được <b>${bad.length}</b>` : ''}</p>
-    ${fresh.length ? `<h3 class="section-title">Gửi mã QR kích hoạt cho khách mới</h3><div class="grid" style="gap:6px">${fresh.map(x => `<div class="room-item"><span style="flex:1"><b>${esc(x.room_code)}</b> ${esc(x.tenant || '')} <span class="muted">${esc(x.username)}</span></span>
-      <button class="btn sm primary" data-act="sendSetupQr" data-id="${x.room_id}" data-tok="${esc(x.setup_token)}" data-u="${esc(x.username)}">Gửi mã QR</button></div>`).join('')}</div>` : ''}
-    ${bad.length ? `<h3 class="section-title">Chưa tạo được</h3>${bad.map(x => `<div class="muted">• ${esc(x.room_code)}: ${esc(x.error || x.skipped)}</div>`).join('')}` : ''}
+  const fresh = res.filter(x => x.created), bad = res.filter(x => x.error);
+  const pending = res.filter(x => x.username && !x.created && !x.activated), ok = res.filter(x => x.username && !x.created && x.activated);
+  const row = (x, tok) => `<div class="room-item"><span style="flex:1"><b>${esc(x.room_code)}</b> ${esc(x.tenant || '')} <code class="muted">${esc(x.username)}</code></span>
+    ${tok ? `<button class="btn sm primary" data-act="sendSetupQr" data-id="${x.room_id}" data-tok="${esc(x.setup_token)}" data-u="${esc(x.username)}">Gửi mã kích hoạt</button>`
+      : `<button class="btn sm" data-act="tenantQr" data-id="${x.room_id}" data-a="resend">Tạo mã mới</button>`}</div>`;
+  openModal(`<h2>📱 Tài khoản phòng – ${esc(UI.building)}</h2>
+    <p style="margin-top:10px">✓ Tạo mới <b>${fresh.length}</b> • chờ khách kích hoạt <b>${pending.length}</b> • đã kích hoạt <b>${ok.length}</b>${bad.length ? ` • lỗi <b>${bad.length}</b>` : ''}</p>
+    ${fresh.length ? `<h3 class="section-title">Gửi mã kích hoạt cho khách</h3><div class="grid" style="gap:6px">${fresh.map(x => row(x, true)).join('')}</div>` : ''}
+    ${pending.length ? `<h3 class="section-title">Khách chưa đặt mật khẩu</h3><div class="grid" style="gap:6px">${pending.map(x => row(x, false)).join('')}</div>` : ''}
+    ${bad.length ? `<h3 class="section-title">Lỗi</h3>${bad.map(x => `<div class="muted">• ${esc(x.room_code)}: ${esc(x.error)}</div>`).join('')}` : ''}
     <div class="foot"><button class="btn" data-act="close">Đóng</button></div>`);
 };
 A.sendSetupQr = el => showTenantQr(roomById(el.dataset.id), { setup_token: el.dataset.tok, username: el.dataset.u, created: true });
@@ -1129,6 +1134,7 @@ function vSettings() {
   <div id="sf">
   <div class="card"><h3 style="margin-bottom:12px">Thông tin nhà & ngân hàng (cho mã QR)</h3><div class="form">
     ${field('Tên nhà trọ', 'house_name', s.house_name)}${field('Địa chỉ', 'address', s.address)}${field('Khu vực (để Sales lọc)', 'area', s.area, { ph: 'vd: Quận 3, TP.HCM' })}${field('SĐT liên hệ', 'phone', s.phone)}
+    ${field(`Mã chủ nhà – tài khoản phòng dạng ${(s.owner_code || 'CT001').toLowerCase()}-${UI.building.toLowerCase()}-p101`, 'owner_code', s.owner_code, { ph: 'vd: CT001' })}
     ${field('Ngân hàng', 'bank_name', s.bank_name, { options: [['', '— chọn —'], ...banks.map(b => b[0])] })}${field('Số tài khoản', 'account_no', s.account_no)}
     ${field('Chủ tài khoản (VIẾT HOA KHÔNG DẤU)', 'account_name', s.account_name)}${field('Hạn thanh toán: ngày … tháng sau', 'due_day', s.due_day, { num: 1 })}
     ${field('Nhắc hết hạn hợp đồng trước (ngày)', 'remind_days', s.remind_days, { num: 1 })}
@@ -1180,6 +1186,9 @@ A.saveSettings = async () => {
   d.banks = d.banks_txt.split('\n').map(x => x.split('|').map(y => y.trim())).filter(x => x[0] && x[1]); delete d.banks_txt;
   d.bank_bin = (d.banks.find(b => b[0] === d.bank_name) || [])[1] || '';
   d.account_name = noAccent(d.account_name).toUpperCase();
+  d.owner_code = noAccent(d.owner_code || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (d.owner_code !== (S.settings.owner_code || '') && (S.tenant_links || []).some(l => l.active)
+    && !confirm(`Đổi mã chủ nhà thành ${d.owner_code}? Tên đăng nhập mọi tài khoản phòng sẽ đổi theo (vd ${d.owner_code.toLowerCase()}-${UI.building.toLowerCase()}-p101) – nhớ báo khách.`)) return;
   d.expense_categories = $$('#catT tbody tr').map(tr => ({
     name: $('[data-k=name]', tr).value.trim(), group: $('[data-k=group]', tr).value, fixed: parseNum($('[data-k=fixed]', tr).value) || 0,
     estimate: $('[data-k=estimate]', tr).value, note: $('[data-k=note]', tr).value
@@ -1891,48 +1900,45 @@ const linkOf = code => (S.tenant_links || []).find(l => l.room_code === code && 
 
 /* ---- phía chủ trọ: tài khoản app của khách (trong form phòng) ---- */
 function tenantAccountHTML(r) {
-  const l = linkOf(r.code);
+  const l = linkOf(r.code), rented = r.status !== 'Trống';
   return `<div class="card" style="background:var(--surface-2)">
-    ${r.access_token ? `<div class="actions" style="float:right"><button class="btn sm" data-act="roomQr" data-id="${r.id}" title="Mã QR in trên bill – khách quét để xem lịch sử hóa đơn">🔳 QR phòng</button></div>` : ''}
-    ${l ? `<b>📱 @${esc(l.username)}</b> ${l.has_password ? '<span class="pill ok">khách đã kích hoạt</span>' : '<span class="pill warn">chưa quét QR đặt mật khẩu</span>'}
-      <div class="muted" style="font-size:13px;margin:4px 0 8px">Khách xem hóa đơn từ ${pLabel(l.since_period)} trở đi trong app. Bill chỉ hiện với khách sau khi bạn bấm “Gửi bill qua app” ở tab Bill.</div>
-      <div class="actions"><button class="btn sm" data-act="tenantQr" data-id="${r.id}" data-a="reset">${l.has_password ? 'Mã QR đặt lại mật khẩu' : 'Hiện lại mã QR'}</button>
-      <button class="btn sm danger" data-act="tenantEnd" data-id="${r.id}">Ngắt (khách đã trả phòng)</button></div>`
-    : `<b>📱 Khách chưa có tài khoản app</b><div class="muted" style="font-size:13px;margin:4px 0 8px">Tạo tài khoản theo SĐT của phòng${r.phone ? ` (<b>${esc(phoneNorm(r.phone))}</b>)` : ' – nhập SĐT trước'}. Khách quét mã QR để đặt mật khẩu, cài app lên màn hình chính, rồi nhận bill hằng tháng + lịch sử hóa đơn.</div>
-      <button class="btn sm primary" data-act="tenantQr" data-id="${r.id}" data-a="create" ${r.phone ? '' : 'disabled'}>Tạo tài khoản + mã QR cho khách</button>`}</div>`;
+    ${r.access_token ? `<div class="actions" style="float:right"><button class="btn sm" data-act="roomQr" data-id="${r.id}" title="Mã QR in trên bill – khách quét để mở trang đăng nhập phòng">🔳 QR phòng</button></div>` : ''}
+    ${l ? `<b>📱 Tài khoản phòng: <code>${esc(l.username)}</code></b> ${!rented ? '<span class="pill muted">đã khóa (phòng trống)</span>' : l.has_password ? '<span class="pill ok">khách đã kích hoạt</span>' : '<span class="pill warn">chờ khách đặt mật khẩu</span>'}
+      <div class="muted" style="font-size:13px;margin:4px 0 8px">Tài khoản cố định của phòng (ở chung dùng chung). Khách thấy hóa đơn từ ${pLabel(l.since_period)}.
+        Khi có <b>khách mới</b> (đổi ngày vào hoặc phòng từ Trống sang có người) app tự reset: lịch sử tính lại từ tháng vào, mật khẩu cũ mất hiệu lực.</div>
+      ${rented ? `<div class="actions"><button class="btn sm" data-act="tenantQr" data-id="${r.id}" data-a="resend">Gửi lại mã kích hoạt (quên mật khẩu)</button>
+      <button class="btn sm danger" data-act="tenantQr" data-id="${r.id}" data-a="new_tenant">🔄 Khách mới – reset tài khoản</button></div>` : ''}`
+    : rented ? `<b>📱 Phòng chưa có tài khoản app</b><div class="muted" style="font-size:13px;margin:4px 0 8px">Tài khoản cố định theo phòng, dạng <code>mãchủnhà-mãtòa-mãphòng</code>. Gửi mã kích hoạt cho khách để khách tự đặt mật khẩu, xem bill hằng tháng + lịch sử hóa đơn.</div>
+      <button class="btn sm primary" data-act="tenantQr" data-id="${r.id}" data-a="create">Tạo tài khoản phòng + mã kích hoạt</button>`
+    : '<span class="muted">Phòng trống – tài khoản phòng được tạo khi có khách.</span>'}</div>`;
 }
 A.tenantQr = async el => {
-  const r = roomById(el.dataset.id);
-  const res = await api('POST', `/api/rooms/${r.id}/tenant-account`, { action: el.dataset.a });
+  const r = roomById(el.dataset.id), a = el.dataset.a;
+  if (a === 'new_tenant' && !confirm(`Khách mới ở ${r.code}?\nTài khoản ${linkOf(r.code)?.username || ''} sẽ bị reset: khách cũ bị đăng xuất, mật khẩu cũ mất hiệu lực, lịch sử hóa đơn tính lại từ tháng vào ${r.move_in ? '(' + fmtDate(r.move_in) + ')' : '(tháng này)'}.\nNên cập nhật Ngày vào trước.`)) return;
+  const res = await api('POST', `/api/rooms/${r.id}/tenant-account`, { action: a });
   S.tenant_links = (await api('GET', '/api/all')).tenant_links;
   showTenantQr(r, res);
 };
 function showTenantQr(r, res, auto) {
-  const tok = res.setup_token, url = tok ? `${appBase()}/?setup=${encodeURIComponent(tok)}` : `${appBase()}/`;
-  const uname = res.username || linkOf(r.code)?.username || phoneNorm(r.phone);  // tên đăng nhập thật của khách
-  const msg = tok ? `Chào ${r.tenant || 'anh/chị'}, ${S.settings.house_name} gửi tài khoản xem hóa đơn phòng ${r.code}.\nBấm link (hoặc quét mã QR) để đặt mật khẩu: ${url}\nTên đăng nhập là SĐT của anh/chị: ${uname}. Sau đó chọn "Thêm vào màn hình chính" để dùng như app.`
-    : `Chào ${r.tenant || 'anh/chị'}, phòng ${r.code} đã được gắn vào tài khoản app của anh/chị (SĐT ${uname}). Đăng nhập tại ${url} để xem hóa đơn hằng tháng.`;
-  openModal(`<h2>📱 Tài khoản app – ${esc(r.code)}</h2>
-    ${auto ? `<p class="pill ok" style="display:block;white-space:normal;margin-top:8px">✓ Đã lưu phòng và tự tạo tài khoản app cho khách theo SĐT ${esc(res.username)}. Gửi mã QR này để khách kích hoạt.</p>` : ''}
-    ${tok ? `<div class="invite-qr" style="margin-top:12px"><img src="${qrDataUrl(url, 5)}" alt="QR"><div>
-      <p><b>Khách quét mã này</b> bằng camera điện thoại → đặt mật khẩu → vào app.</p>
-      <p class="muted" style="font-size:13px">Tên đăng nhập: <b>${esc(uname)}</b>. Mã dùng 1 lần, hạn 14 ngày. Sau khi vào, khách chọn menu trình duyệt → <i>Thêm vào màn hình chính</i> để có biểu tượng app.</p>
-      <p style="word-break:break-all;font-size:12px"><code>${esc(url)}</code></p></div></div>`
-    : `<p style="margin-top:12px">✓ SĐT này đã có tài khoản app (khách từng thuê ở đây hoặc tòa khác) – đã gắn thêm phòng ${esc(r.code)}. Khách đăng nhập như cũ.</p>`}
+  const tok = res.setup_token, url = `${appBase()}/?setup=${encodeURIComponent(tok || '')}`;
+  const uname = res.username || linkOf(r.code)?.username || '';
+  const msg = `Chào ${r.tenant || 'anh/chị'}, ${S.settings.house_name} gửi tài khoản xem hóa đơn phòng ${r.code}.\nTên đăng nhập: ${uname}\nBấm link (hoặc quét mã QR) để tự đặt mật khẩu: ${url}\nSau đó chọn "Thêm vào màn hình chính" để dùng như app. Hằng tháng hóa đơn sẽ được gửi qua app.`;
+  const head = res.reset ? '🔄 Đã reset tài khoản cho khách mới' : res.created ? '✓ Đã tạo tài khoản phòng' : '';
+  openModal(`<h2>📱 Tài khoản phòng ${esc(r.code)}</h2>
+    ${head || auto ? `<p class="pill ok" style="display:block;white-space:normal;margin-top:8px">${head}${auto ? ' (tự động khi lưu phòng)' : ''}. Gửi mã này để khách tự đặt mật khẩu.</p>` : ''}
+    <div class="invite-qr" style="margin-top:12px"><img src="${qrDataUrl(url, 5)}" alt="QR"><div>
+      <p>Tên đăng nhập: <b style="font-size:17px"><code>${esc(uname)}</code></b></p>
+      <p><b>Khách quét mã này</b> bằng camera điện thoại → tự đặt mật khẩu → vào app.</p>
+      <p class="muted" style="font-size:13px">Mã dùng 1 lần, hạn 14 ngày. Sau khi vào, khách chọn menu trình duyệt → <i>Thêm vào màn hình chính</i>.</p>
+      <p style="word-break:break-all;font-size:12px"><code>${esc(url)}</code></p></div></div>
     ${ME.meta.lan ? '' : '<p class="pill warn" style="display:block;white-space:normal;margin-top:10px">App đang chạy chế độ chỉ máy này – điện thoại khách chưa mở được link. Chạy run-dienthoai.bat (cùng Wi-Fi) hoặc đưa app lên mạng.</p>'}
-    <textarea class="sales-text" id="tqMsg" style="min-height:110px;margin-top:10px">${esc(msg)}</textarea>
+    <textarea class="sales-text" id="tqMsg" style="min-height:120px;margin-top:10px">${esc(msg)}</textarea>
     <div class="foot"><button class="btn" data-act="close">Đóng</button><button class="btn" id="tqCopy">Copy tin nhắn</button>
-    ${phoneNorm(uname) ? '<button class="btn primary" id="tqZalo">Copy & mở Zalo khách</button>' : ''}</div>`, body => {
+    ${phoneNorm(r.phone) ? '<button class="btn primary" id="tqZalo">Copy & mở Zalo khách</button>' : ''}</div>`, body => {
     $('#tqCopy', body).onclick = async () => { await copyText($('#tqMsg').value); toast('Đã copy'); };
-    const z = $('#tqZalo', body); if (z) z.onclick = async () => { await copyText($('#tqMsg').value); window.open('https://zalo.me/' + phoneNorm(uname), '_blank'); toast('Đã copy – dán vào Zalo'); };
+    const z = $('#tqZalo', body); if (z) z.onclick = async () => { await copyText($('#tqMsg').value); window.open('https://zalo.me/' + phoneNorm(r.phone), '_blank'); toast('Đã copy – dán vào Zalo'); };
   });
 }
-A.tenantEnd = async el => {
-  const r = roomById(el.dataset.id);
-  if (!confirm(`Ngắt tài khoản app của khách phòng ${r.code}? Khách vẫn xem được các hóa đơn trong thời gian đã ở, nhưng không nhận bill mới.`)) return;
-  await api('POST', `/api/rooms/${r.id}/tenant-account`, { action: 'end' });
-  S.tenant_links = (await api('GET', '/api/all')).tenant_links; A.editRoom({ dataset: { id: r.id } });
-};
 
 /* ---- gửi bill qua app ---- */
 A.publishBill = async el => {
@@ -2042,26 +2048,24 @@ A.tenantSaveImg = async el => {
   let pendingInvite = false; try { pendingInvite = !!sessionStorage.getItem('invite'); } catch (_) {}
   const st = await (await fetch('/api/auth-status')).json();
   if (!st.user) return showLogin(pendingInvite ? 'Bạn được chia sẻ một tòa nhà. Đăng nhập hoặc đăng ký tài khoản Chủ trọ để nhận.'
-    : st.first ? 'Chào mừng! Tạo tài khoản đầu tiên – tài khoản này sẽ là chủ trọ của các tòa nhà đang có.' : '', st.first ? 'register' : CLAIM_INFO ? 'register' : 'login');
+    : st.first ? 'Chào mừng! Tạo tài khoản đầu tiên – tài khoản này sẽ là chủ trọ của các tòa nhà đang có.' : '', st.first ? 'register' : 'login');
   ME.user = st.user;
-  // đã đăng nhập + có mã QR phòng -> gắn phòng vào tài khoản để xem lịch sử hóa đơn
-  let claimed = null;
+  // đang đăng nhập mà quét QR phòng của tài khoản khác -> nhắc đăng xuất để vào tài khoản phòng
   if (CLAIM_INFO) {
-    try { claimed = await api('POST', '/api/room-claim', { token: pendingClaim() }); toast(`✓ Đã thêm phòng ${claimed.room} – ${claimed.house} vào tài khoản`, 5000); }
-    catch (_) {}
+    if (CLAIM_INFO.username && CLAIM_INFO.username !== ME.user.username)
+      toast(`Bạn đang đăng nhập ${ME.user.username}. Muốn xem hóa đơn phòng ${CLAIM_INFO.room}: Tài khoản → Đăng xuất rồi đăng nhập ${CLAIM_INFO.username}.`, 8000);
     try { sessionStorage.removeItem('roomclaim'); } catch (_) {}
   }
   ME.meta = await api('GET', '/api/meta');
   $('#accountBtn').textContent = (ME.user.name || ME.user.username).trim().charAt(0).toUpperCase();
   $('#accountBtn').title = `${ME.user.name} (@${ME.user.username})`;
   refreshBell(); setInterval(refreshBell, 5 * 60 * 1000);
-  if (ME.user.kind === 'sales') { await startSales(); if (claimed) return A.myBills(); return checkInvite(); }
+  if (ME.user.kind === 'sales') { await startSales(); return checkInvite(); }
   if (ME.user.kind === 'tenant') { await startTenant(); history.replaceState(null, '', '/'); return; }
   try { UI.building = new URLSearchParams(location.search).get('b') || localStorage.getItem('building'); } catch (_) {}
   await loadBuildings();
   if (await checkInvite()) { if (!UI.building) return; }
   if (!UI.building) {
-    if (claimed || ME.meta.my_rooms) return A.myBills();  // chủ trọ chưa có tòa nhưng đang thuê phòng
     view.innerHTML = `<div class="card empty" style="max-width:520px;margin:40px auto"><h2>Xin chào ${esc(ME.user.name)}!</h2>
     <p>Bạn chưa thuộc tòa nhà nào.</p><p>• Nếu bạn là <b>chủ trọ</b>: tạo tòa nhà của mình.<br>• Nếu bạn là <b>quản lý / người xem</b>: gửi SĐT <b>${esc(ME.user.username)}</b> cho chủ trọ để được thêm vào.</p>
     <div class="actions" style="justify-content:center;margin-top:12px"><button class="btn primary" data-act="newBuilding">+ Tạo tòa nhà</button><button class="btn" data-act="account">Tài khoản</button></div></div>`;
@@ -2074,7 +2078,6 @@ A.tenantSaveImg = async el => {
   try { const t = localStorage.getItem('tab'); if (t) UI.tab = t; } catch (_) {}
   const qt = new URLSearchParams(location.search).get('tab'); if (qt) UI.tab = qt;
   goTab(UI.tab);
-  if (claimed) return A.myBills();  // vừa quét QR phòng mình thuê -> mở hóa đơn
   // giống Excel: sang tháng mới mà chưa có kỳ thì hỏi tạo
   if (latest && pNow() > latest && can('bills')) A.createPeriod({ dataset: { p: String(pNow()) } });
 })();
