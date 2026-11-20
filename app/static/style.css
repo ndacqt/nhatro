@@ -215,7 +215,10 @@ body.sales-mode #building,body.sales-mode #tabs,body.sales-mode #prevP,body.sale
 body.tenant-mode #building,body.tenant-mode #tabs,body.tenant-mode #prevP,body.tenant-mode #nextP,body.tenant-mode #period,body.tenant-mode .phone-btn{display:none!important}
 body.sales-mode .topbar,body.tenant-mode .topbar{justify-content:space-between}
 @media (max-width:640px){body.tenant-mode{padding-bottom:0}}
-.market-filters{display:grid;grid-template-columns:1fr 170px 170px 170px;gap:10px}
+.market-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.market-filters input{grid-column:1/-1}
+.room-card.locked{opacity:.62}
+.room-card.locked .cover::after{content:"🔒 ĐÃ CHỐT";position:absolute;inset:auto 0 0 0;background:rgba(185,28,28,.88);color:#fff;font-weight:800;text-align:center;padding:6px;letter-spacing:1px}
 .market-filters input,.market-filters select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:15px;min-width:0}
 .listing-card{border-color:var(--accent);background:var(--accent-soft)}
 @media (max-width:860px){.market-filters{grid-template-columns:1fr 1fr}.market-filters input{grid-column:1/-1}}

@@ -249,7 +249,8 @@ const CAP_RULES = [
   ['input[data-f=new_idx],input[data-f=manual_kwh],[data-act=meterPhoto],[data-act=meterSeq]', 'readings'],
   ['[data-act=idcardScan],[data-act=newContract],[data-act=delContract],#cf [name],#cSave', 'rooms'],
   ['#sf [name^=landlord],#sf [name=contract_place],#sf [name=remind_days],#sf [name^=auto_publish]', 'settings'],
-  ['[data-act=syncTenants],[data-act=sendSetupQr],[data-act=rotateRoomQr]', 'rooms'],
+  ['[data-act=syncTenants],[data-act=sendSetupQr],[data-act=rotateRoomQr],[data-act=ownerLock],[data-act=ownerUnlock],[data-act=unlistLocked]', 'rooms'],
+  ['#sf [name=area]', 'settings'],
   ['[data-act=leaseRemind],[data-act=leaseRenew],[data-act=leaseLeaving],[data-act=shareSalesRoom],[data-act=tenantQr],[data-act=tenantEnd]', 'rooms'],
   ['[data-act=publishBill],[data-act=confirmClaim]', 'payments'],
   ['input[data-f=paid],[data-act=togglePaid]', 'payments'],
@@ -957,11 +958,14 @@ function vSales() {
   <div class="actions"><button class="btn" data-act="copyAllVacant">Copy danh sách phòng trống</button></div></div>
   <div class="sales-layout"><div>
     <div class="actions" style="margin-bottom:8px"><button class="btn sm ${UI.salesFilter === 'vacant' ? 'primary' : ''}" data-act="salesFilter" data-f="vacant">Trống / sắp trống</button><button class="btn sm ${UI.salesFilter === 'all' ? 'primary' : ''}" data-act="salesFilter" data-f="all">Tất cả</button></div>
-    <div class="room-list">${list.map(x => { const im = imagesOf(x.id)[0]; return `<button class="room-item ${x.id === UI.salesRoom ? 'active' : ''}" data-act="pickSales" data-id="${x.id}">${im ? `<img src="${imgUrl(im)}" alt="">` : '<span class="ph"></span>'}<span style="flex:1;min-width:0"><b>${esc(x.code)}</b> ${statusPill(x.status)}<br><span class="muted">${shortMoney(x.price)} • ${imagesOf(x.id).length} ảnh</span> ${listingPill(x.listing)}</span></button>`; }).join('') || '<div class="card empty">Không có phòng trống. Chọn “Tất cả”.</div>'}</div>
+    <div class="room-list">${list.map(x => { const im = imagesOf(x.id)[0]; return `<button class="room-item ${x.id === UI.salesRoom ? 'active' : ''}" data-act="pickSales" data-id="${x.id}">${im ? `<img src="${imgUrl(im)}" alt="">` : '<span class="ph"></span>'}<span style="flex:1;min-width:0"><b>${esc(x.code)}</b> ${statusPill(x.status)}<br><span class="muted">${shortMoney(x.price)} • ${imagesOf(x.id).length} ảnh</span> ${listingPill(x.listing)}${x.lock_at ? ' <span class="pill danger">🔒 đã chốt</span>' : ''}</span></button>`; }).join('') || '<div class="card empty">Không có phòng trống. Chọn “Tất cả”.</div>'}</div>
   </div>
   ${r ? `<div class="grid" style="gap:14px">
     <div class="card listing-card"><div class="head" style="margin-bottom:0"><div><h3>Hiển thị ${esc(r.code)} cho tài khoản Sales</h3>
-      <p>${r.status === 'Đang thuê' && r.listing ? '⚠ Phòng đang thuê – chỉ hiện cho Sales khi chuyển sang Trống / Sắp trống.' : 'Sales thấy: giá, dịch vụ, tiện ích, ảnh, thông tin liên hệ chủ trọ.'}</p></div>
+      <p>${r.status === 'Đang thuê' && r.listing ? '⚠ Phòng đang thuê – chỉ hiện cho Sales khi chuyển sang Trống / Sắp trống.' : 'Sales thấy: giá, dịch vụ, tiện ích, ảnh, thông tin liên hệ chủ trọ.'}</p>
+      ${r.lock_at ? `<p class="pill danger" style="display:block;white-space:normal;margin-top:6px">🔒 Đã chốt bởi <b>${esc(r.lock_by_name)}</b> lúc ${esc(r.lock_at)}${r.lock_note ? ' – ' + esc(r.lock_note) : ''}. Mọi Sales đã được báo.</p>
+        <div class="actions" style="margin-top:6px">${r.listing ? `<button class="btn sm primary" data-act="unlistLocked" data-id="${r.id}" data-b="${esc(UI.building)}">Gỡ khỏi Sales</button>` : ''}<button class="btn sm" data-act="ownerUnlock" data-id="${r.id}" data-b="${esc(UI.building)}">Hủy chốt</button></div>`
+      : r.listing ? `<div class="actions" style="margin-top:6px"><button class="btn sm" data-act="ownerLock" data-id="${r.id}">🔒 Chốt (đã có khách cọc)</button></div>` : ''}</div>
       <div class="actions"><select id="listingSel" class="btn" data-id="${r.id}">${LISTING.map(([v, l]) => `<option value="${v}" ${v === (r.listing || '') ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <button class="btn primary" data-act="shareSalesRoom" data-id="${r.id}">📣 Gửi cho danh bạ Sales</button></div></div></div>
     <div class="card"><div class="head"><h3>Nội dung – ${esc(r.code)}</h3><div class="actions">
@@ -1124,7 +1128,7 @@ function vSettings() {
   <div class="actions"><a class="btn" href="/api/export.xlsx?${bq()}">⬇ Xuất Excel</a><button class="btn" data-act="importExcel">Nhập từ Excel</button><a class="btn" href="/api/backup?${bq()}">Tải bản sao lưu (.zip)</a><button class="btn primary" data-act="saveSettings">Lưu cài đặt</button></div></div>
   <div id="sf">
   <div class="card"><h3 style="margin-bottom:12px">Thông tin nhà & ngân hàng (cho mã QR)</h3><div class="form">
-    ${field('Tên nhà trọ', 'house_name', s.house_name)}${field('Địa chỉ', 'address', s.address)}${field('SĐT liên hệ', 'phone', s.phone)}
+    ${field('Tên nhà trọ', 'house_name', s.house_name)}${field('Địa chỉ', 'address', s.address)}${field('Khu vực (để Sales lọc)', 'area', s.area, { ph: 'vd: Quận 3, TP.HCM' })}${field('SĐT liên hệ', 'phone', s.phone)}
     ${field('Ngân hàng', 'bank_name', s.bank_name, { options: [['', '— chọn —'], ...banks.map(b => b[0])] })}${field('Số tài khoản', 'account_no', s.account_no)}
     ${field('Chủ tài khoản (VIẾT HOA KHÔNG DẤU)', 'account_name', s.account_name)}${field('Hạn thanh toán: ngày … tháng sau', 'due_day', s.due_day, { num: 1 })}
     ${field('Nhắc hết hạn hợp đồng trước (ngày)', 'remind_days', s.remind_days, { num: 1 })}
@@ -1482,7 +1486,7 @@ A.clearAiKey = async () => {
 };
 
 /* ================= SALES: TÌM PHÒNG ================= */
-const MK = { list: [], q: '', price: '', status: '', sort: 'new' };
+const MK = { list: [], q: '', price: '', status: '', sort: 'new', owner: '', bld: '', area: '' };
 async function startSales() {
   document.body.classList.add('sales-mode');
   $('.brand').insertAdjacentHTML('beforeend', '<b style="font-size:16px">Tìm phòng</b>');
@@ -1497,39 +1501,66 @@ function vMarket() {
     const r = it.room, hay = noAccent(`${r.code} ${it.settings.house_name} ${it.settings.address} ${r.amenities} ${r.description}`).toLowerCase();
     if (q && !q.split(/\s+/).every(w => hay.includes(w))) return false;
     if (MK.price && (MK.price.startsWith('>') ? r.price <= +MK.price.slice(1) : r.price > +MK.price)) return false;
-    if (MK.status && r.status !== MK.status) return false;
+    if (MK.status === 'locked' ? !r.lock_at : MK.status === 'open' ? r.lock_at : MK.status && r.status !== MK.status) return false;
+    if (MK.owner && it.owner.name !== MK.owner) return false;
+    if (MK.bld && it.building !== MK.bld) return false;
+    if (MK.area && it.settings.area !== MK.area) return false;
     return true;
   });
-  list = list.sort(MK.sort === 'asc' ? (a, b) => a.room.price - b.room.price : MK.sort === 'desc' ? (a, b) => b.room.price - a.room.price
-    : (a, b) => (a.room.status === 'Trống' ? 0 : 1) - (b.room.status === 'Trống' ? 0 : 1) || String(a.room.available_from).localeCompare(String(b.room.available_from)));
-  const opt = (v, l, cur) => `<option value="${v}" ${String(cur) === v ? 'selected' : ''}>${l}</option>`;
+  // phòng đã chốt xuống cuối – không mất thời gian giới thiệu
+  list = list.sort((a, b) => (a.room.lock_at ? 1 : 0) - (b.room.lock_at ? 1 : 0) || (MK.sort === 'asc' ? a.room.price - b.room.price : MK.sort === 'desc' ? b.room.price - a.room.price
+    : (a.room.status === 'Trống' ? 0 : 1) - (b.room.status === 'Trống' ? 0 : 1) || String(a.room.available_from).localeCompare(String(b.room.available_from))));
+  const opt = (v, l, cur) => `<option value="${esc(v)}" ${String(cur) === String(v) ? 'selected' : ''}>${esc(l)}</option>`;
+  const uniq = f => [...new Set(MK.list.map(f).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), 'vi'));
+  const bnames = Object.fromEntries(MK.list.map(x => [x.building, `${x.settings.house_name} (${x.building})`]));
   view.innerHTML = `<div class="head"><div><h2>Phòng đang mở cho Sales</h2><p>${MK.list.length} phòng trống / sắp trống từ ${new Set(MK.list.map(x => x.building)).size} tòa nhà • xin chào ${esc(ME.user.name)}</p></div>
     <div class="actions"><button class="btn" data-act="marketReload">↻ Làm mới</button><button class="btn" data-act="account">Tài khoản</button></div></div>
   <div class="card market-filters">
     <input id="mkQ" placeholder="🔍 Tìm theo địa chỉ, tòa, phòng, tiện ích (vd: máy lạnh, ban công)…" value="${esc(MK.q)}">
     <select id="mkPrice">${opt('', 'Mọi mức giá', MK.price)}${opt('3000000', 'Đến 3 triệu', MK.price)}${opt('4000000', 'Đến 4 triệu', MK.price)}${opt('5000000', 'Đến 5 triệu', MK.price)}${opt('7000000', 'Đến 7 triệu', MK.price)}${opt('>7000000', 'Trên 7 triệu', MK.price)}</select>
-    <select id="mkStatus">${opt('', 'Trống + sắp trống', MK.status)}${opt('Trống', 'Trống – ở ngay', MK.status)}${opt('Sắp trống', 'Sắp trống', MK.status)}</select>
+    <select id="mkStatus">${opt('', 'Trống + sắp trống', MK.status)}${opt('Trống', 'Trống – ở ngay', MK.status)}${opt('Sắp trống', 'Sắp trống', MK.status)}${opt('open', 'Chưa ai chốt', MK.status)}${opt('locked', '🔒 Đã có người chốt', MK.status)}</select>
     <select id="mkSort">${opt('new', 'Trống sớm nhất', MK.sort)}${opt('asc', 'Giá thấp → cao', MK.sort)}${opt('desc', 'Giá cao → thấp', MK.sort)}</select>
+    <select id="mkArea">${opt('', 'Mọi khu vực', MK.area)}${uniq(x => x.settings.area).map(a => opt(a, a, MK.area)).join('')}</select>
+    <select id="mkOwner">${opt('', 'Mọi chủ nhà', MK.owner)}${uniq(x => x.owner.name).map(o => opt(o, o, MK.owner)).join('')}</select>
+    <select id="mkBld">${opt('', 'Mọi tòa nhà', MK.bld)}${uniq(x => x.building).map(b => opt(b, bnames[b], MK.bld)).join('')}</select>
+    ${MK.owner || MK.bld || MK.area || MK.price || MK.status || MK.q ? '<button class="btn" data-act="mkClear">✕ Bỏ lọc</button>' : ''}
   </div>
   <div class="room-grid" style="margin-top:14px">${list.map((it, i) => marketCard(it, MK.list.indexOf(it))).join('') ||
     `<div class="card empty" style="grid-column:1/-1">${MK.list.length ? 'Không có phòng khớp bộ lọc.' : 'Chưa có phòng nào được mở cho bạn. Chủ trọ cần bật “Hiển thị cho Sales” ở phòng trống, hoặc chia sẻ riêng cho tên đăng nhập <b>' + esc(ME.user.username) + '</b>.'}</div>`}</div>`;
-  const re = () => { MK.q = $('#mkQ').value; MK.price = $('#mkPrice').value; MK.status = $('#mkStatus').value; MK.sort = $('#mkSort').value; };
+  const re = () => { MK.q = $('#mkQ').value; MK.price = $('#mkPrice').value; MK.status = $('#mkStatus').value; MK.sort = $('#mkSort').value;
+    MK.area = $('#mkArea').value; MK.owner = $('#mkOwner').value; MK.bld = $('#mkBld').value; };
   $('#mkQ').oninput = () => { re(); clearTimeout(MK.t); MK.t = setTimeout(() => { const pos = $('#mkQ').selectionStart; vMarket(); $('#mkQ').focus(); $('#mkQ').setSelectionRange(pos, pos); }, 250); };
-  ['#mkPrice', '#mkStatus', '#mkSort'].forEach(s => $(s).onchange = () => { re(); vMarket(); });
+  ['#mkPrice', '#mkStatus', '#mkSort', '#mkArea', '#mkOwner', '#mkBld'].forEach(s => $(s).onchange = () => { re(); vMarket(); });
 }
+A.mkClear = () => { Object.assign(MK, { q: '', price: '', status: '', owner: '', bld: '', area: '' }); vMarket(); };
 function marketCard(it, idx) {
   const r = it.room, s = it.settings;
   const when = r.status === 'Trống' ? (r.available_from && r.available_from > today() ? 'Trống từ ' + fmtDate(r.available_from) : 'Ở ngay') : 'Sắp trống' + (r.available_from ? ' – ' + fmtDate(r.available_from) : '');
-  return `<div class="card room-card"><div class="cover" data-act="marketOpen" data-i="${idx}" style="cursor:pointer">${r.images[0] ? `<img src="${r.images[0]}" loading="lazy" alt="">` : '<span>Chưa có ảnh</span>'}${r.images.length ? `<span class="count">${r.images.length} ảnh</span>` : ''}</div>
+  return `<div class="card room-card ${r.lock_at ? 'locked' : ''}"><div class="cover" data-act="marketOpen" data-i="${idx}" style="cursor:pointer">${r.images[0] ? `<img src="${r.images[0]}" loading="lazy" alt="">` : '<span>Chưa có ảnh</span>'}${r.images.length ? `<span class="count">${r.images.length} ảnh</span>` : ''}</div>
   <div class="body"><div class="row"><h3>${esc(r.code)} · ${esc(s.house_name)}</h3>${statusPill(r.status)}</div>
   <div class="price">${shortMoney(r.price)}<span class="muted" style="font-weight:400;font-size:13px">/tháng</span></div>
   <div class="muted" style="font-size:13px">📍 ${esc(s.address)}</div>
   <div class="muted" style="font-size:12px">${[r.area && r.area + 'm²', r.floor && 'tầng ' + r.floor, r.max_people && 'tối đa ' + r.max_people + ' người'].filter(Boolean).join(' • ')}</div>
   <div style="font-size:12px;margin-top:2px"><b>${esc(when)}</b> ${it.via === 'shared' ? '<span class="pill warn">Chia sẻ riêng cho bạn</span>' : ''}
-  ${r.shared_at && (Date.now() - new Date(r.shared_at.replace(' ', 'T') + 'Z')) < 3 * 86400000 ? '<span class="pill ok">Mới gửi</span>' : ''}</div></div>
+  ${r.shared_at && !r.lock_at && (Date.now() - new Date(r.shared_at.replace(' ', 'T') + 'Z')) < 3 * 86400000 ? '<span class="pill ok">Mới gửi</span>' : ''}</div>
+  ${r.lock_at ? `<div class="pill danger" style="display:block;white-space:normal;margin-top:4px">🔒 ${r.locked_by_me ? 'Bạn đã chốt' : 'Đã có người chốt'} lúc ${esc(r.lock_at)} – ${r.locked_by_me ? 'chờ chủ xác nhận' : 'ngừng giới thiệu'}</div>` : ''}
+  <div class="muted" style="font-size:12px">🏠 ${esc(it.owner.name || '')}${s.area ? ' • ' + esc(s.area) : ''}</div></div>
   <div class="foot"><button class="btn sm primary" data-act="marketOpen" data-i="${idx}">Chi tiết & tin đăng</button>${it.owner.phone ? `<a class="btn sm" href="tel:${esc(phoneNorm(it.owner.phone))}">📞 Gọi chủ</a>` : ''}</div></div>`;
 }
 A.marketReload = async () => { MK.list = await api('GET', '/api/market'); vMarket(); toast('Đã cập nhật'); };
+A.mkLock = async el => {
+  const it = MK.list[+el.dataset.i];
+  if (!confirm(`Chốt phòng ${it.room.code} – ${it.settings.house_name}?\nMọi Sales khác sẽ được báo ngừng giới thiệu phòng này, chủ trọ được báo để gỡ phòng.`)) return;
+  try { await api('POST', `/api/market/${encodeURIComponent(it.building)}/${it.room.id}/lock`, { note: ($('#mkLockNote') || {}).value || '' }, undefined, true); }
+  catch (e) { toast(e.message, 6000); }  // vd "đã được X chốt lúc …" nếu Sales khác chốt trước
+  closeModal(); MK.list = await api('GET', '/api/market'); vMarket(); refreshBell();
+};
+A.mkUnlock = async el => {
+  const it = MK.list[+el.dataset.i];
+  if (!confirm(`Hủy chốt ${it.room.code}? Phòng mở lại cho mọi Sales.`)) return;
+  await api('POST', `/api/market/${encodeURIComponent(it.building)}/${it.room.id}/unlock`, {});
+  closeModal(); MK.list = await api('GET', '/api/market'); vMarket(); toast('Đã hủy chốt – mọi Sales được báo phòng mở lại');
+};
 A.marketOpen = el => {
   const it = MK.list[+el.dataset.i], r = it.room, s = it.settings, o = it.owner, ph = phoneNorm(o.phone);
   const info = [['Giá thuê', moneyD(r.price) + '/tháng'], ['Cọc', n0(r.deposit) ? moneyD(r.deposit) : '1 tháng tiền phòng'], ['Điện', moneyD(s.elec_price) + '/kWh'],
@@ -1546,6 +1577,14 @@ A.marketOpen = el => {
       ${o.contact ? `<p class="muted">Liên hệ xem phòng: ${esc(o.contact)}</p>` : ''}
       ${o.commission ? `<p class="pill ok" style="display:inline-block;white-space:normal">🎁 Hoa hồng: ${esc(o.commission)}</p>` : ''}
       <div class="actions" style="margin-top:10px">${ph ? `<a class="btn primary" href="tel:${ph}">Gọi</a><a class="btn" href="https://zalo.me/${ph}" target="_blank" rel="noopener">Zalo</a>` : ''}</div></div>
+  </div>
+  <div class="card" style="margin-top:14px;${r.lock_at ? 'border-color:var(--danger);background:var(--danger-soft)' : 'border-color:var(--accent)'}">
+    ${r.lock_at ? `<b>🔒 ${r.locked_by_me ? 'Bạn đã chốt phòng này' : 'Phòng đã có người chốt'}</b> lúc ${esc(r.lock_at)}.
+        ${r.locked_by_me ? 'Chủ trọ đã được báo. Khách hủy cọc thì bấm Hủy chốt để mở lại cho các Sales khác.' : 'Đừng dẫn khách xem phòng này nữa.'}
+        ${r.locked_by_me ? `<div style="margin-top:8px"><button class="btn sm" data-act="mkUnlock" data-i="${MK.list.indexOf(it)}">Hủy chốt (khách đổi ý)</button></div>` : ''}`
+      : `<b>Khách của bạn đã đồng ý / đặt cọc?</b> Bấm chốt để giữ phòng: mọi Sales khác nhận thông báo ngừng giới thiệu, chủ trọ được báo để gỡ phòng.
+        <div class="actions" style="margin-top:8px"><input id="mkLockNote" class="cell-input" style="flex:1;min-width:180px;text-align:left" placeholder="Ghi chú cho chủ: tên / SĐT khách, tiền cọc…">
+        <button class="btn primary" data-act="mkLock" data-i="${MK.list.indexOf(it)}">🔒 Chốt phòng</button></div>`}
   </div>
   <h3 class="section-title">Tin đăng (copy gửi khách)</h3>
   <textarea class="sales-text" id="mkText" style="min-height:240px">${esc(marketText(it))}</textarea>
@@ -1675,9 +1714,14 @@ A.myBills = async () => { closeModal(); TN = await api('GET', '/api/tenant'); vT
 A.openBell = async () => {
   await refreshBell();
   if (ME.user.kind === 'sales') {
-    openModal(`<h2>🔔 Phòng mới được gửi cho bạn</h2>${BELL.length ? BELL.map(n => `<div class="lease-item"><div><b>${esc(n.room)}</b> · ${esc(n.house)} – ${shortMoney(n.price)}<div class="muted" style="font-size:12px">gửi lúc ${esc(String(n.at).slice(0, 16))}</div></div>
+    const ev = BELL.filter(n => n.type === 'lock_event'), fresh = BELL.filter(n => n.type === 'shared');
+    openModal(`${ev.length ? `<h2>🔒 Phòng vừa chốt / mở lại</h2><p class="muted">Phòng đã chốt: ngừng giới thiệu để không mất thời gian.</p>
+      ${ev.map(n => `<div class="lease-item"><div>${n.action === 'lock' ? '<span class="pill danger">🔒 Đã chốt</span>' : '<span class="pill ok">🔓 Mở lại</span>'} <b>${esc(n.room)}</b> · ${esc(n.house)}
+        <div class="muted" style="font-size:12px">${n.action === 'lock' ? 'chốt bởi' : 'mở lại bởi'} ${esc(n.by)} lúc ${esc(n.at)}</div></div></div>`).join('')}<div style="height:16px"></div>` : ''}
+      <h2>🔔 Phòng mới được gửi cho bạn</h2>${fresh.length ? fresh.map(n => `<div class="lease-item"><div><b>${esc(n.room)}</b> · ${esc(n.house)} – ${shortMoney(n.price)}<div class="muted" style="font-size:12px">gửi lúc ${esc(String(n.at).slice(0, 16))}</div></div>
       <button class="btn sm primary" data-act="bellMarket" data-b="${esc(n.building)}" data-id="${n.room_id}">Xem</button></div>`).join('') : '<p class="muted" style="margin-top:12px">Chưa có phòng mới trong 7 ngày qua.</p>'}
       <div class="foot"><button class="btn" data-act="close">Đóng</button></div>`);
+    if (document.body.classList.contains('sales-mode')) { MK.list = await api('GET', '/api/market'); vMarket(); }
     return;
   }
   if (ME.user.kind === 'tenant') {
@@ -1686,14 +1730,35 @@ A.openBell = async () => {
       <div class="foot"><button class="btn" data-act="close">Đóng</button></div>`);
     return;
   }
-  const claims = BELL.filter(n => n.type === 'paid_claim'), leases = BELL.filter(n => n.type === 'lease');
-  openModal(`${claims.length ? `<h2>💸 Khách báo đã chuyển khoản</h2><p class="muted">Kiểm tra tài khoản ngân hàng rồi xác nhận.</p>
+  const claims = BELL.filter(n => n.type === 'paid_claim'), leases = BELL.filter(n => n.type === 'lease'), locks = BELL.filter(n => n.type === 'room_locked');
+  openModal(`${locks.length ? `<h2>🔒 Phòng đã được chốt</h2><p class="muted">Mọi Sales đã được báo ngừng giới thiệu. Gỡ phòng khỏi danh sách gửi Sales, hoặc hủy chốt nếu khách không cọc.</p>
+    <div style="margin:8px 0 18px">${locks.map(n => `<div class="lease-item"><div><b>${esc(n.code)}</b> <span class="muted">· ${esc(n.house)}</span> – chốt bởi <b>${esc(n.lock_by_name)}</b>
+      <div class="muted" style="font-size:12px">lúc ${esc(n.lock_at)}${n.lock_note ? ' • ' + esc(n.lock_note) : ''}</div></div>
+      <div class="actions"><button class="btn sm primary" data-act="unlistLocked" data-b="${esc(n.building)}" data-id="${n.id}">Gỡ khỏi Sales</button>
+      <button class="btn sm" data-act="ownerUnlock" data-b="${esc(n.building)}" data-id="${n.id}">Hủy chốt</button></div></div>`).join('')}</div>` : ''}
+    ${claims.length ? `<h2>💸 Khách báo đã chuyển khoản</h2><p class="muted">Kiểm tra tài khoản ngân hàng rồi xác nhận.</p>
     <div style="margin:8px 0 18px">${claims.map(n => `<div class="lease-item"><div><b>${esc(n.room_code)}</b> <span class="muted">· ${esc(n.house)}</span> – ${pLabel(n.period)}
       <div class="muted" style="font-size:12px">báo lúc ${esc(n.tenant_paid_at)}</div></div>
       <div class="actions"><button class="btn sm primary" data-act="confirmClaim" data-b="${esc(n.building)}" data-id="${n.id}">✓ Xác nhận đã thu</button></div></div>`).join('')}</div>` : ''}
     <h2>🔔 Hợp đồng sắp hết hạn</h2><p class="muted">Các tòa của bạn – nhắc trước ${n0(S.settings?.remind_days) || 30} ngày (đổi ở Cài đặt). Nhắc khách tái ký, ghi nhận tái ký, hoặc báo Sales khi khách sẽ ra.</p>
     <div style="margin-top:8px">${leases.map(n => leaseItemHTML(n, true)).join('') || '<p class="muted">Không có hợp đồng nào sắp hết hạn. 🎉</p>'}</div>
     <div class="foot"><button class="btn" data-act="close">Đóng</button></div>`);
+};
+A.unlistLocked = async el => {
+  await inBuilding(el.dataset.b);
+  const r = roomById(el.dataset.id), v = await api('PUT', '/api/rooms/' + r.id, { listing: '' }); Object.assign(r, v);
+  toast(`${r.code}: đã gỡ khỏi Sales. Khi khách vào ở, nhớ đổi trạng thái sang Đang thuê.`, 5000); closeModal(); refreshBell(); render();
+};
+A.ownerUnlock = async el => {
+  await inBuilding(el.dataset.b);
+  const r = roomById(el.dataset.id);
+  if (!confirm(`Hủy chốt ${r.code}? Mọi Sales được báo phòng mở lại.`)) return;
+  await api('POST', `/api/rooms/${r.id}/unlock`, {}); await load(); closeModal(); refreshBell(); render(); toast('Đã hủy chốt');
+};
+A.ownerLock = async el => {
+  const r = roomById(el.dataset.id), note = prompt(`Chốt ${r.code} (đã có khách cọc)? Mọi Sales sẽ được báo ngừng giới thiệu.\nGhi chú (không bắt buộc):`, '');
+  if (note === null) return;
+  await api('POST', `/api/rooms/${r.id}/lock`, { note }); await load(); refreshBell(); render(); toast(`Đã chốt ${r.code} – đã báo mọi Sales`);
 };
 A.bellMarket = el => { closeModal(); const i = MK.list.findIndex(x => x.building === el.dataset.b && x.room.id === +el.dataset.id); if (i >= 0) A.marketOpen({ dataset: { i } }); };
 

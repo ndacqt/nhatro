@@ -87,7 +87,7 @@ Máy chủ kiểm tra quyền ở **mọi thao tác** (chỉ tính những trư�
 | **Thu tháng** | Tạo kỳ mới (tự lấy chỉ số cũ, giá, số người, xe, chi phí cố định), nhập *Chỉ số mới* (Enter xuống phòng tiếp), **📷 chụp đồng hồ – AI đọc số**, *Chụp điện lần lượt*, cột kWh tháng trước + cảnh báo chênh lệch, tích đã thu |
 | **Bill** | Phiếu thanh toán có **mã QR VietQR** (số tiền + nội dung CK điền sẵn) và **mã QR xem lịch sử hóa đơn** cho khách; tải PNG, in / PDF, gửi Zalo (copy ảnh + mở chat), gửi Zalo lần lượt cả kỳ, **📤 gửi bill qua app** |
 | **Phòng** | Khách thuê, SĐT, ngày vào / **ngày ra (hết hạn HĐ)**, giá, cọc; **📷 chụp CCCD – AI tự điền**; thông tin cho Sales (diện tích, tầng, tiện ích, mô tả); kho ảnh; **hợp đồng thuê tự động** (in / PDF / Word); **tài khoản app của khách** + mã QR phòng |
-| **Gửi Sales** | Tin đăng tự soạn từ giá + dịch vụ + tiện ích, ảnh tổng hợp (poster), tải ảnh .zip, chế độ hiển thị cho Sales (Ẩn / Công khai / Gửi riêng), **📒 Danh bạ Sales** + **📣 Gửi cho danh bạ** |
+| **Gửi Sales** | Tin đăng tự soạn từ giá + dịch vụ + tiện ích, ảnh tổng hợp (poster), tải ảnh .zip, chế độ hiển thị cho Sales (Ẩn / Công khai / Gửi riêng), **📒 Danh bạ Sales** + **📣 Gửi cho danh bạ**, trạng thái **chốt phòng** (Chốt / Gỡ khỏi Sales / Hủy chốt) |
 | **Chi phí / Thu thêm** | Sổ chi (cố định tự thêm theo kỳ; điện / nước tạm tính theo kWh / số người đến khi có hóa đơn thật) và thu thêm / giảm trừ |
 | **Cài đặt** | Thông tin nhà, khu vực, ngân hàng, đơn giá, hạng mục chi, mẫu tin Sales, mẫu hợp đồng, nhắc hết hạn, **tự gửi bill qua app**, AI, thành viên, chia sẻ tòa, sao lưu, nhập / xuất Excel |
 
@@ -107,10 +107,17 @@ Sheet: Thông tin, Tổng hợp theo tháng (thu / chi / lãi / biên / kWh), Th
 
 ## 4. Sales (môi giới)
 
-- Trang **Tìm phòng**: tìm theo địa chỉ / tiện ích, lọc giá, trống ngay / sắp trống, sắp xếp; xem ảnh, giá, dịch vụ, cọc, liên hệ + hoa hồng của chủ; **copy tin đăng**, tải ảnh .zip, gọi / Zalo chủ.
+- Trang **Tìm phòng**: tìm theo địa chỉ / tiện ích; **lọc theo khu vực, chủ nhà, tòa nhà**, giá, trống ngay / sắp trống / chưa ai chốt; sắp xếp; xem ảnh, giá, dịch vụ, cọc, liên hệ + hoa hồng của chủ; **copy tin đăng**, tải ảnh .zip, gọi / Zalo chủ.
 - Chỉ thấy phòng **Trống / Sắp trống** mà chủ để **Công khai**, hoặc **Gửi riêng** cho mình qua danh bạ (khớp theo tài khoản hoặc SĐT – Sales đăng ký sau bằng đúng SĐT cũng tự thấy phòng đã gửi).
-- Chuông 🔔: phòng mới được gửi.
-- *Đang phát triển:* **chốt phòng (lock)** – Sales / chủ báo đã có khách cọc, mọi Sales nhận thông báo, chủ được nhắc gỡ phòng khỏi Sales; **lọc theo chủ nhà, tòa nhà, khu vực**. Phía máy chủ đã có, giao diện đang làm.
+- Khu vực lấy từ ô **Khu vực** trong Cài đặt của tòa (nếu trống: 2 phần cuối của địa chỉ).
+- Chuông 🔔: phòng mới được gửi, phòng vừa bị chốt / mở lại.
+
+### Chốt phòng (lock) – không mất thời gian của nhau
+1. Khách của Sales đồng ý / đặt cọc → Sales mở phòng → nhập ghi chú (tên khách, tiền cọc…) → **🔒 Chốt phòng**. Chỉ **một người** chốt được (2 người bấm cùng lúc: người sau nhận báo "đã được … chốt lúc …").
+2. **Mọi Sales đang thấy phòng đó** nhận thông báo "đã có người chốt – ngừng giới thiệu"; thẻ phòng mờ đi với nhãn **ĐÃ CHỐT** và xuống cuối danh sách.
+3. **Chủ trọ** nhận thông báo (chuông + tab Gửi Sales) → **Gỡ khỏi Sales** (phòng biến khỏi Tìm phòng) hoặc **Hủy chốt** nếu khách không cọc.
+4. Sales đã chốt có thể **Hủy chốt** (khách đổi ý) → mọi Sales được báo phòng mở lại. Chủ tự tìm được khách cũng bấm **🔒 Chốt** ở tab Gửi Sales để báo tất cả Sales.
+5. Lần trống sau, chủ bật lại hiển thị cho Sales → trạng thái chốt cũ tự xóa.
 
 ---
 
